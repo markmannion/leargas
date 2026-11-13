@@ -147,3 +147,11 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# LLM-generated files
+CLAUDE.md
+AGENTS.md
+HANDOFF.md
+
+# Docs
+/docs
