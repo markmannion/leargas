@@ -155,3 +155,7 @@ HANDOFF.md
 
 # explainer docs (not committed)
 explainer_docs/
+
+# Dataset (hosted on Hugging Face: leargas/junction-dataset)
+datasets/
+junction-dataset-preview/
