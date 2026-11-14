@@ -13,7 +13,9 @@ const COLLECTION_NAME: Record<string, string> = {
 }
 
 export function collectionName(c: string) {
-  return COLLECTION_NAME[c] ?? (c.replace(/[_-]/g, ' ') || 'Other')
+  if (COLLECTION_NAME[c]) return COLLECTION_NAME[c]
+  const words = c.replace(/[_-]+/g, ' ').trim().replace(/\b(ifc|dxf|pdf|png|uk|us)\b/gi, (w) => w.toUpperCase())
+  return words ? words[0].toUpperCase() + words.slice(1) : 'Other'
 }
 
 /** [main, secondary]: the floor first, so similar plans are easy to tell apart. */
