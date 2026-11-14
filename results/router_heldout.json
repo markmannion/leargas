@@ -1,0 +1,115 @@
+{
+  "overall": {
+    "n": 2512,
+    "accuracy": 0.981687898089172,
+    "accuracy_strict_1pct": 0.981687898089172,
+    "coverage": 0.981687898089172,
+    "precision": 1.0,
+    "outcomes": {
+      "correct": 2466,
+      "abstain": 46
+    }
+  },
+  "ext/pdf": {
+    "n": 2512,
+    "accuracy": 0.981687898089172,
+    "accuracy_strict_1pct": 0.981687898089172,
+    "coverage": 0.981687898089172,
+    "precision": 1.0,
+    "outcomes": {
+      "correct": 2466,
+      "abstain": 46
+    }
+  },
+  "source/ifc_models": {
+    "n": 598,
+    "accuracy": 1.0,
+    "accuracy_strict_1pct": 1.0,
+    "coverage": 1.0,
+    "precision": 1.0,
+    "outcomes": {
+      "correct": 598
+    }
+  },
+  "source/swiss_dwellings": {
+    "n": 1914,
+    "accuracy": 0.9759665621734587,
+    "accuracy_strict_1pct": 0.9759665621734587,
+    "coverage": 0.9759665621734587,
+    "precision": 1.0,
+    "outcomes": {
+      "correct": 1868,
+      "abstain": 46
+    }
+  },
+  "type/area": {
+    "n": 1012,
+    "accuracy": 0.958498023715415,
+    "accuracy_strict_1pct": 0.958498023715415,
+    "coverage": 0.958498023715415,
+    "precision": 1.0,
+    "outcomes": {
+      "correct": 970,
+      "abstain": 42
+    }
+  },
+  "type/count": {
+    "n": 1456,
+    "accuracy": 0.9972527472527473,
+    "accuracy_strict_1pct": 0.9972527472527473,
+    "coverage": 0.9972527472527473,
+    "precision": 1.0,
+    "outcomes": {
+      "correct": 1452,
+      "abstain": 4
+    }
+  },
+  "type/length": {
+    "n": 14,
+    "accuracy": 1.0,
+    "accuracy_strict_1pct": 1.0,
+    "coverage": 1.0,
+    "precision": 1.0,
+    "outcomes": {
+      "correct": 14
+    }
+  },
+  "type/volume": {
+    "n": 30,
+    "accuracy": 1.0,
+    "accuracy_strict_1pct": 1.0,
+    "coverage": 1.0,
+    "precision": 1.0,
+    "outcomes": {
+      "correct": 30
+    }
+  },
+  "text_exact_match(unscored)": {
+    "n": 134,
+    "accuracy": 0.0,
+    "accuracy_strict_1pct": 0.0,
+    "coverage": 0.0,
+    "precision": null,
+    "outcomes": {
+      "abstain": 134
+    }
+  },
+  "_meta": {
+    "tolerance": 0.02,
+    "numeric_median_rel_err": 0.0,
+    "n_predictions": 2646
+  },
+  "_run": {
+    "sent": 2646,
+    "ok": 2646,
+    "errors": 0,
+    "wall_s": 149.11643983295653,
+    "latency_p50_s": 0.026391167077235878,
+    "latency_p95_s": 1.3570060420315713,
+    "api": "http://127.0.0.1:8000",
+    "engine": "auto",
+    "split": "data/runs/heldout_paths.txt",
+    "types": null,
+    "limit": null
+  }
+}

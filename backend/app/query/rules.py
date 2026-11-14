@@ -44,8 +44,15 @@ _TARGETS: List[Tuple[str, str, Optional[str]]] = [
 # Qualifiers we can't express in a Query: better to refuse than to answer a different question.
 _UNSUPPORTED = re.compile(
     r"\b(exterior|external|interior|internal|fire|material|type[sd]?|thickness|gross|footprint|"
-    r"largest|smallest|tallest|average|per|each|which|list|with their)\b"
+    r"largest|smallest|tallest|average|per|each|which|list|with their|"
+    r"inside|outside|inner|outer|load[- ]?bearing|structural|partition|curtain|switch(?:es)?|"
+    r"sockets?|outlets?|compared|versus|vs|facades?|north|south|east|west|house|access|"
+    r"distributed|distribution|breakdown|where|available)\b"
 )
+
+# Words allowed around the target in the head noun phrase; anything else ("x-ray rooms",
+# "meeting rooms") narrows the question in a way the Query can't hold.
+_HEAD_FILLER = re.compile(r"\b(the|all|total|in total|overall|separate|individual|drawn|shown|of|a|any|numbered|indoor|labelled|labeled|named|called|marked|combined|floor)\b")
 
 _COUNT = re.compile(r"\b(how many|number of|count)\b")
 _HEAD_COUNT = re.compile(
@@ -99,6 +106,14 @@ def parse_template(template: str, args: List[Arg]) -> Optional[Query]:
             target, room_type = tgt, rt
             break
     if target is None:
+        return None
+    # Every word of the head must be the target itself (or a synonym of it) or filler.
+    rest = re.sub(pat, " ", head)
+    rest = _HEAD_FILLER.sub(" ", re.sub(r"<[SNL]>|[^\w<>]+", " ", rest))
+    rest = re.sub(r"\b(or|and)\b", " ", rest)
+    if target == "room":
+        rest = re.sub(r"\b(rooms?|spaces?)\b", " ", rest)
+    if rest.strip():
         return None
 
     q = dict(op=op, target=target, room_type=room_type)
