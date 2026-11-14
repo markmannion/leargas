@@ -207,13 +207,13 @@ function AskCell({ s }: { s: Session }) {
   const box = useRef<HTMLTextAreaElement>(null)
   const d = s.selected
   const blocked = !d || s.busy || s.selectingRegion
-  const submit = (q: string) => {
+  const submit = (q: string, spoken = false) => {
     const t = q.trim()
     if (!t || blocked) return
     setText(t)
-    void s.ask(t)
+    void s.ask(t, { spoken })
   }
-  const mic = useVoiceInput((t) => submit(t))
+  const mic = useVoiceInput((t) => submit(t, true))
   const listening = mic.state === 'recording'
 
   // "/" puts the cursor in the question box, as in a search field.
