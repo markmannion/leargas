@@ -149,6 +149,7 @@ vite.config.ts.timestamp-*
 .turbo
 
 # LLM-generated files
+.claude/
 CLAUDE.md
 AGENTS.md
 HANDOFF.md
