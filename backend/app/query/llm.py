@@ -7,7 +7,7 @@ Config (env):
     LEARGAS_LLM_BASE_URL   e.g. http://<verda-host>:8000/v1   (unset -> fallback disabled)
     LEARGAS_LLM_MODEL      default "gemma-base"
     LEARGAS_LLM_API_KEY    optional
-    LEARGAS_LLM_TIMEOUT    seconds, default 20
+    LEARGAS_LLM_TIMEOUT    seconds, default 5
 """
 
 from __future__ import annotations
@@ -19,6 +19,8 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 from pydantic import ValidationError
+
+from .. import gemma_status
 
 from .schema import Op, Query, RoomType, Scope, Target
 
@@ -91,11 +93,19 @@ def parse_with_llm(question: str, client: Optional[httpx.Client] = None) -> Opti
         "temperature": 0,
         "max_tokens": 200,
     }
-    c = client or httpx.Client(timeout=float(os.environ.get("LEARGAS_LLM_TIMEOUT", "20")))
+    if client is None:
+        state = gemma_status.status(body["model"], url=base, key=os.environ.get("LEARGAS_LLM_API_KEY", ""))
+        if not state["available"]:
+            raise RuntimeError("Gemma query parsing is temporarily unavailable; local templates and rules still work.")
+    c = client or httpx.Client(timeout=float(os.environ.get("LEARGAS_LLM_TIMEOUT", "5")))
     try:
         r = c.post(f"{base}/chat/completions", json=body, headers=headers)
         r.raise_for_status()
         return parse_output(r.json()["choices"][0]["message"]["content"])
+    except httpx.HTTPError:
+        if client is None:
+            gemma_status.failed(body["model"], url=base, key=os.environ.get("LEARGAS_LLM_API_KEY", ""))
+        raise RuntimeError("Gemma query parsing is temporarily unavailable; please try again shortly.") from None
     finally:
         if client is None:
             c.close()

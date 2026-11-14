@@ -12,6 +12,7 @@ Needs fastapi, uvicorn, httpx (installed in ~/venv-vllm by setup_box.sh).
 from __future__ import annotations
 
 import argparse
+import asyncio
 import os
 import time
 
@@ -51,14 +52,18 @@ async def health():
 @app.get("/v1/models")
 async def models(req: Request):
     _auth(req)
-    data = []
-    for name, base in ROUTES.items():
+    async def fetch_models(base):
         try:
             r = await client.get(f"{base}/v1/models", headers={"authorization": f"Bearer {API_KEY}"}, timeout=2.0)
             if r.status_code == 200:
-                data.extend(r.json().get("data", []))
-        except httpx.HTTPError:
+                data = r.json().get("data", [])
+                return data if isinstance(data, list) else []
+        except (httpx.HTTPError, ValueError, AttributeError):
             pass
+        return []
+
+    groups = await asyncio.gather(*(fetch_models(base) for base in ROUTES.values()))
+    data = [model for group in groups for model in group]
     return {"object": "list", "data": data}
 
 

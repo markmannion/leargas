@@ -358,11 +358,20 @@ button {
 .api-status.live .dot {
   background: var(--green);
 }
-.api-status.mock .dot {
+.api-status.mock .dot,
+.api-status.degraded .dot {
   background: var(--orange);
 }
 .api-status.offline .dot {
   background: var(--red);
+}
+
+.model-notice {
+  padding: 10px 12px;
+  border-left: 3px solid var(--orange);
+  color: var(--label-2);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 /* Segmented control (macOS / iOS style) */
@@ -470,11 +479,153 @@ button {
   padding: 16px 14px 10px;
   display: grid;
   gap: 10px;
+  flex: none;
+  border-bottom: 1px solid var(--separator);
+}
+
+.register-help {
+  margin: -5px 0 0;
+  color: var(--label-2);
+  font-size: 12px;
+}
+
+.plan-collection {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.plan-collection > span {
+  color: var(--label-2);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.plan-collection select {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--separator);
+  border-radius: 8px;
+  background: var(--control-bg);
+  color: var(--label);
+  font: inherit;
+  text-transform: capitalize;
+  text-overflow: ellipsis;
+}
+
+.plan-formats {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.plan-formats button {
+  min-height: 28px;
+  flex: 1;
+  padding: 4px 7px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: var(--fill-2);
+  color: var(--label-2);
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.plan-formats button.on {
+  color: var(--blue);
+  border-color: color-mix(in srgb, var(--blue) 35%, transparent);
+  background: color-mix(in srgb, var(--blue) 10%, transparent);
+  font-weight: 600;
+}
+
+.plan-current {
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: var(--fill-2);
+  border-left: 3px solid var(--blue);
+}
+
+.plan-current-label {
+  color: var(--label-3);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.plan-current-name {
+  color: var(--label-2);
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.plan-results {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  min-height: 20px;
+  color: var(--label-3);
+  font-size: 11px;
+}
+
+.plan-results button,
+.register-empty button {
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--blue);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.register-empty {
+  padding: 24px 8px;
+  color: var(--label-2);
+  font-size: 12px;
+}
+
+.register-empty strong {
+  color: var(--label);
+}
+
+.register-empty p {
+  margin: 6px 0 12px;
+}
+
+.plan-load-more {
+  display: grid;
+  gap: 3px;
+  width: calc(100% - 8px);
+  margin: 12px 4px 0;
+  padding: 10px;
+  border: 1px solid var(--separator);
+  border-radius: 9px;
+  background: var(--fill-2);
+  color: var(--blue);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.plan-load-more span {
+  color: var(--label-3);
+  font-size: 10px;
+}
+
+.plan-formats button:hover,
+.plan-load-more:hover {
+  background: var(--hover);
 }
 
 .search {
   width: 100%;
-  height: 30px;
+  height: 34px;
   padding: 0 10px 0 30px;
   border: 0;
   border-radius: 9px;
@@ -519,11 +670,13 @@ button {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 6px 8px;
+  min-height: 54px;
+  padding: 9px 8px;
   border: 0;
   border-radius: 9px;
   background: transparent;
   text-align: left;
+  cursor: pointer;
 }
 
 .sheet-row:hover {
@@ -545,6 +698,9 @@ button {
 .sheet-name {
   font-size: 13px;
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .sheet-sub {
@@ -557,8 +713,9 @@ button {
 
 .sheet-meta {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
   flex: none;
   font-size: 11px;
   color: var(--label-3);
@@ -1339,7 +1496,7 @@ button {
   }
   .register {
     order: 1;
-    max-height: 260px;
+    max-height: 440px;
   }
   .viewer-frame {
     order: 2;

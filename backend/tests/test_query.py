@@ -173,3 +173,35 @@ def test_parser_llm_error_degrades(table, monkeypatch):
     monkeypatch.setattr(llm, "parse_with_llm", boom)
     r = parser.parse("Wie viele Badewannen gibt es?")
     assert r.query is None and r.parser == "none" and "LLM parse failed" in r.reason
+
+
+def test_llm_outage_skips_inference_but_local_rules_work(table, monkeypatch):
+    monkeypatch.setenv("LEARGAS_LLM_BASE_URL", "http://llm.test/v1")
+    monkeypatch.setattr(llm.gemma_status, "status", lambda *args, **kw: {"status": "unavailable", "available": False})
+
+    def unexpected(*args, **kwargs):
+        pytest.fail("Offline parser must not make an inference request")
+
+    monkeypatch.setattr(llm.httpx, "Client", unexpected)
+    r = parser.parse("How many windows are there?")
+    assert r.query.target == "window" and r.parser == "rules"
+    r = parser.parse("Wie viele Badewannen gibt es?")
+    assert r.query is None and "temporarily unavailable" in r.reason
+
+
+def test_llm_inference_timeout_starts_cooldown(monkeypatch):
+    monkeypatch.setenv("LEARGAS_LLM_BASE_URL", "http://llm.test/v1")
+    monkeypatch.setenv("LEARGAS_LLM_API_KEY", "parser-key")
+    monkeypatch.setattr(llm.gemma_status, "status", lambda *args, **kw: {"available": True})
+    failures = []
+    monkeypatch.setattr(llm.gemma_status, "failed", lambda *args, **kw: failures.append((args, kw)))
+    client_class = httpx.Client
+
+    def timeout(req):
+        raise httpx.ReadTimeout("private upstream details")
+
+    monkeypatch.setattr(llm.httpx, "Client", lambda **kw: client_class(transport=httpx.MockTransport(timeout)))
+    with pytest.raises(RuntimeError, match="temporarily unavailable") as exc:
+        llm.parse_with_llm("Wie viele Badewannen gibt es?")
+    assert "private" not in str(exc.value)
+    assert failures == [(("gemma-base",), {"url": "http://llm.test/v1", "key": "parser-key"})]

@@ -75,7 +75,8 @@ def _mock_evidence(n: int) -> list:
 @app.get("/health")
 def health() -> dict:
     mode = "mock" if _mock() else "live"
-    out = {"ok": True, "mode": mode, "gemma": mode == "live" and qa_router.gemma_available(),
+    gemma = qa_router.gemma_health() if mode == "live" else {"status": "disabled", "available": False, "models": {}}
+    out = {"ok": True, "mode": mode, "gemma": gemma["available"], "gemma_status": gemma,
            "gold_questions_loaded": len(_gold())}
     if demo_cache.enabled():
         out["demo_cache"] = {"path": str(demo_cache.cache_path()),
@@ -95,7 +96,7 @@ def schema() -> dict:
 
 @app.post("/ask", response_model=Answer)
 def ask(req: AskRequest, response: Response) -> Answer:
-    if demo_cache.enabled():
+    if demo_cache.enabled() and req.region is None:
         hit = demo_cache.lookup(req.path, req.question, req.engine)
         if hit is not None:
             response.headers["X-Leargas-Cache"] = "hit"
@@ -108,6 +109,14 @@ def ask(req: AskRequest, response: Response) -> Answer:
 
 def _mock_ask(req: AskRequest) -> Answer:
     t0 = time.perf_counter()
+    if req.region is not None:
+        return Answer(
+            path=req.path, question=req.question, region=req.region,
+            answer=None, unit=None, type=req.type or _guess_type(req.question),
+            status=Status.cannot_verify, confidence=0.0, source=Source.mock,
+            explanation="Region questions require a live engine; whole-sheet dataset answers cannot verify a region.",
+            latency_ms=(time.perf_counter() - t0) * 1000,
+        )
     g = _gold().get((req.path, req.question))
     if g is not None:
         qtype = QuestionType(g["type"])

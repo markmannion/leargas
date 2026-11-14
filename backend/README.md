@@ -14,6 +14,36 @@ cd backend && ../.venv/bin/pytest -q
 - `GET /schema` — JSON Schema for the request and `Answer`.
 - `GET /health`
 
+## Temporary Gemma outages
+
+`/health` keeps `ok: true` while the API is serving geometry and cached answers.
+Its `gemma` boolean now means the fine-tuned model is reachable, rather than just
+configured. `gemma_status` includes `status`, `available`, and per-model states
+for `gemma-ft` and `gemma-base`: `available`, `unavailable`, `checking`, or
+`unconfigured` (`disabled` in mock mode). Readiness is checked using authenticated
+`GET <MODEL_BASE_URL>/models`, cached for 10 seconds, and rechecked automatically.
+Inference failures put the affected model into the same cooldown. The UI polls
+health every 15 seconds and shows which model is offline.
+
+Auto still compares geometry with Gemma when the model responds promptly. Once
+geometry has a valid answer, it waits at most one additional second for the
+comparison, then returns geometry with its evidence and an explanation that
+model confirmation was unavailable. Raster-only and explicit model requests have
+a 15-second overall wait budget and return `cannot_verify` on failure, without
+inventing an answer. The number of outstanding model jobs is bounded; additional
+requests fall back instead of building an unbounded queue. Demo-cache hits still
+return before any readiness check or model request.
+
+Optional environment settings (seconds): `LEARGAS_GEMMA_CHECK_TIMEOUT=3`,
+`LEARGAS_GEMMA_CHECK_INTERVAL=10`, `LEARGAS_GEMMA_COMPARE_WAIT=1`,
+`LEARGAS_GEMMA_TIMEOUT=15`. The separately configured question-parser endpoint
+also uses readiness/cooldown checks; local templates and rules run first and
+continue working during outages. `LEARGAS_LLM_TIMEOUT` defaults to 5 seconds.
+
+The model proxy probes its upstream model lists concurrently, so an offline
+model does not delay readiness checks for all of the others. Restart the proxy
+with the updated `infra/model_proxy.py` when bringing the Gemma server back up.
+
 ## Answer contract (`app/schema.py`, exported to `contracts/`)
 
 - `path`, `question`, `answer`, `unit`, `type` match `questions.jsonl`, so API output can be scored directly.
@@ -24,6 +54,23 @@ cd backend && ../.venv/bin/pytest -q
   Coordinates are **normalized 0–1 on the rendered image** (PNG, or PDF page `page`), with the origin at the top left and y pointing down.
 
 Regenerate `contracts/` after schema changes: `cd backend && ../.venv/bin/python export_schema.py`.
+
+## Region questions
+
+`POST /ask` accepts an optional `region` in normalized coordinates on the sheet served by `/drawing`:
+
+```json
+{"path": "data/swiss_dwellings/floor.pdf", "question": "How many windows in this region?", "engine": "auto", "region": {"bbox": [0.2, 0.1, 0.8, 0.7], "page": 0}}
+```
+
+The answer echoes `region`. DXF counts include items whose polygon centers fall inside the box;
+room area sums require complete rooms and refuse selections that cut through a relevant room.
+Geometry must register confidently to the displayed sheet. IFC geometry currently has no 2D
+registration, so region questions can use the raster model instead. The raster model receives only
+the crop of the displayed image/PDF page, and its evidence points are mapped back onto the full sheet.
+Whole-sheet demo-cache and mock gold answers are never used for region requests.
+
+`GET /drawings` supports `limit` (up to 5000) and `offset`; `total` is the full catalogue count.
 
 ## Scorer
 

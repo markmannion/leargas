@@ -21,8 +21,18 @@ async function json<T>(res: Response): Promise<T> {
 export const api = {
   health: () => fetch(`${API_BASE}/health`).then((r) => json<Health>(r)),
 
-  drawings: (limit = 2000) =>
-    fetch(`${API_BASE}/drawings?limit=${limit}`).then((r) => json<{ total: number; drawings: Drawing[] }>(r)),
+  drawings: async () => {
+    const all: Drawing[] = []
+    let total = 0
+    do {
+      const page = await fetch(`${API_BASE}/drawings?limit=5000&offset=${all.length}`)
+        .then((r) => json<{ total: number; drawings: Drawing[] }>(r))
+      total = page.total
+      all.push(...page.drawings)
+      if (!page.drawings.length) break
+    } while (all.length < total)
+    return { total, drawings: all }
+  },
 
   ask: (req: AskRequest, signal?: AbortSignal) =>
     fetch(`${API_BASE}/ask`, {

@@ -22,15 +22,17 @@ from __future__ import annotations
 import os
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
+from threading import BoundedSemaphore
 from typing import List, Optional, Union
 
-from . import drawings
+from . import drawings, gemma_status
 from .query.parser import parse
 from .query.schema import Query
+from .region import CannotScope, crop_sheet, geometry_question, scope_dxf
 from .schema import (
     Answer,
     AskRequest,
@@ -38,6 +40,7 @@ from .schema import (
     PointEvidence,
     PolygonEvidence,
     QuestionType,
+    Region,
     Source,
     SourceAnswer,
     Status,
@@ -49,13 +52,15 @@ GEOMETRY_CONFIDENCE = 0.95
 # results/calibration_gemma-base.json), so anything lower lets wrong answers through as verified.
 GEMMA_VERIFIED = float(os.environ.get("LEARGAS_GEMMA_VERIFIED", 0.99))
 GEMMA_PARTIAL = float(os.environ.get("LEARGAS_GEMMA_PARTIAL", 0.5))
-GEMMA_TIMEOUT = float(os.environ.get("LEARGAS_GEMMA_TIMEOUT", 60))
+GEMMA_TIMEOUT = float(os.environ.get("LEARGAS_GEMMA_TIMEOUT", 15))
+GEMMA_COMPARE_WAIT = float(os.environ.get("LEARGAS_GEMMA_COMPARE_WAIT", 1))
 # Run 1 and every baseline were prompted without the points addendum; only a model trained with
 # points (run 2) should get it.
 GEMMA_POINTS = os.environ.get("LEARGAS_GEMMA_POINTS", "0") == "1"
 IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg")
 
 _pool = ThreadPoolExecutor(max_workers=8)
+_gemma_slots = BoundedSemaphore(8)
 
 
 @dataclass
@@ -113,7 +118,7 @@ def _dxf_drawing(dxf: str):
     return parse_dxf(dxf)
 
 
-def _dxf_evidence(rel: str, dxf: Path, drawing, item_ids: List[str]) -> List[Evidence]:
+def _dxf_normalizer(rel: str, dxf: Path):
     kind = drawings.render_kind(rel)
     if kind == "dxf":
         fr = drawings.dxf_frame(dxf)
@@ -121,20 +126,31 @@ def _dxf_evidence(rel: str, dxf: Path, drawing, item_ids: List[str]) -> List[Evi
         w, h = (x1 - x0) + 2 * m, (y1 - y0) + 2 * m
 
         def norm(x: float, y: float):
-            return (min(max((x - x0 + m) / w, 0.0), 1.0), min(max((y1 - y + m) / h, 0.0), 1.0))
+            return ((x - x0 + m) / w, (y1 - y + m) / h)
     elif kind in ("image", "pdf"):
         # The served sheet is the PNG twin or the PDF page (same framing): register DXF onto it.
         from .register import dxf_to_image
 
         t = dxf_to_image(_abs(rel))
         if t is None:
-            return []  # no confident fit: no evidence beats misplaced evidence
+            raise CannotScope("The CAD geometry cannot be aligned confidently to the selected sheet.")
 
         def norm(x: float, y: float):
-            u, v = t(x, y)
-            return (min(max(u, 0.0), 1.0), min(max(v, 0.0), 1.0))
+            return t(x, y)
     else:
+        raise CannotScope("No rendered sheet is available for spatial selection.")
+    return norm
+
+
+def _dxf_evidence(rel: str, dxf: Path, drawing, item_ids: List[str]) -> List[Evidence]:
+    try:
+        transform = _dxf_normalizer(rel, dxf)
+    except CannotScope:
         return []
+
+    def norm(x, y):
+        u, v = transform(x, y)
+        return (min(max(u, 0.0), 1.0), min(max(v, 0.0), 1.0))
 
     by_id = {i.id: i for i in drawing.items}
     out = []
@@ -155,7 +171,8 @@ def _dxf_evidence(rel: str, dxf: Path, drawing, item_ids: List[str]) -> List[Evi
     return out
 
 
-def run_dxf(rel: str, dxf: Path, q: Optional[Query], parse_reason: Optional[str]) -> Outcome:
+def run_dxf(rel: str, dxf: Path, q: Optional[Query], parse_reason: Optional[str],
+            region: Optional[Region] = None) -> Outcome:
     out = Outcome(Source.geometry_dxf)
     if q is None:
         out.reason = f"Question not understood as a geometry query ({parse_reason or 'no parse'})."
@@ -170,7 +187,9 @@ def run_dxf(rel: str, dxf: Path, q: Optional[Query], parse_reason: Optional[str]
     try:
         drawing = _dxf_drawing(str(dxf))
         r = drawing.query(dq)
-    except CannotVerify as e:
+        if region is not None:
+            r = scope_dxf(r, dq, drawing, _dxf_normalizer(rel, dxf), region)
+    except (CannotVerify, CannotScope) as e:
         out.reason = f"DXF: {e}"
         return out
     except Exception as e:  # malformed file etc.: never crash the request
@@ -185,8 +204,12 @@ def run_dxf(rel: str, dxf: Path, q: Optional[Query], parse_reason: Optional[str]
     return out
 
 
-def run_ifc(model: Path, q: Optional[Query], parse_reason: Optional[str]) -> Outcome:
+def run_ifc(model: Path, q: Optional[Query], parse_reason: Optional[str],
+            region: Optional[Region] = None) -> Outcome:
     out = Outcome(Source.geometry_ifc)
+    if region is not None:
+        out.reason = "IFC geometry is not aligned to this 2D sheet, so it cannot verify a selected region."
+        return out
     if q is None:
         out.reason = f"Question not understood as a geometry query ({parse_reason or 'no parse'})."
         return out
@@ -206,8 +229,16 @@ def run_ifc(model: Path, q: Optional[Query], parse_reason: Optional[str]) -> Out
 
 
 def gemma_available() -> bool:
+    """Whether Gemma is configured; readiness is checked by gemma_health/run_gemma."""
     _import_model_pkg()
     return bool(os.environ.get("MODEL_BASE_URL"))
+
+
+def gemma_health() -> dict:
+    _import_model_pkg()
+    states = {name: gemma_status.status(name) for name in ("gemma-ft", "gemma-base")}
+    ft = states["gemma-ft"]
+    return {**ft, "models": {name: state["status"] for name, state in states.items()}}
 
 
 @lru_cache(maxsize=1)
@@ -223,8 +254,22 @@ def _import_model_pkg():
         return None
 
 
-def run_gemma(source: Source, image: Optional[Path], question: str) -> Outcome:
+def run_gemma(source: Source, image: Optional[Path], question: str,
+              region: Optional[Region] = None, rel: Optional[str] = None) -> Outcome:
     out = Outcome(source)
+    crop_bounds = None
+    if region is not None:
+        try:
+            image, crop_bounds = crop_sheet(rel, region)
+        except Exception as e:
+            out.reason = f"Cannot read the selected region: {e}"
+            return out
+        question = (
+            f"{question}\nThis image shows only the user-selected region of a larger drawing. "
+            "Answer only for this region. Count objects whose centers are inside the image. "
+            "For room areas, use complete rooms only; if a relevant room is cut by the edge, abstain. "
+            "If scale, dimensions, labels or other required evidence are missing from this crop, abstain."
+        )
     if image is None:
         out.reason = "No raster image of this drawing is available for the model."
         return out
@@ -233,20 +278,30 @@ def run_gemma(source: Source, image: Optional[Path], question: str) -> Outcome:
         out.reason = "Model endpoint not configured (MODEL_BASE_URL)."
         return out
     name = "gemma-ft" if source == Source.gemma_ft else "gemma-base"
+    state = gemma_status.status(name)
+    if not state["available"]:
+        out.reason = gemma_status.reason(state)
+        return out
     try:
-        r = client.ask(str(image), question, model=name, with_points=GEMMA_POINTS, timeout=GEMMA_TIMEOUT)
-    except Exception as e:
-        out.reason = f"{name} request failed: {e}"
+        r = client.ask(image if crop_bounds is not None else str(image), question,
+                       model=name, with_points=GEMMA_POINTS, timeout=GEMMA_TIMEOUT)
+    except Exception:
+        gemma_status.failed(name)
+        out.reason = gemma_status.reason({"status": "unavailable"})
         return out
     if not r.get("ok") or r.get("abstained") or r.get("answer") is None:
         out.reason = f"{name} abstained" + (f": {r['reason']}" if r.get("reason") else ".")
         return out
     out.value, out.unit = r["answer"], r.get("unit")
     out.confidence = float(r["confidence"]) if r.get("confidence") is not None else GEMMA_PARTIAL
-    out.explanation = f"{name} read it from the image" + (f": {r['reason']}" if r.get("reason") else ".")
+    out.explanation = f"{name} read it from {'the selected region' if region else 'the image'}" + (f": {r['reason']}" if r.get("reason") else ".")
+    points = r.get("points") or []
+    if crop_bounds is not None:
+        x0, y0, x1, y1 = crop_bounds
+        points = [(x0 + x * (x1 - x0), y0 + y * (y1 - y0)) for x, y in points]
     out.evidence = [
         Evidence(shape=PointEvidence(point=(x, y)), label=f"{name} point", source=source)
-        for x, y in (r.get("points") or [])
+        for x, y in points
     ]
     return out
 
@@ -357,6 +412,7 @@ def _area_unprinted(req: AskRequest, q: Optional[Query]) -> bool:
 def route(req: AskRequest) -> Answer:
     t0 = time.perf_counter()
     engine = req.engine or "auto"
+    parse_question = geometry_question(req.question) if req.region else req.question
     dxf = dxf_twin(req.path)
     ifc = None if dxf else ifc_model(req.path)
     image = raster_image(req.path)
@@ -368,21 +424,46 @@ def route(req: AskRequest) -> Answer:
 
     jobs = []
     if gemma_src is not None:
-        jobs.append(_pool.submit(run_gemma, gemma_src, image, req.question))
+        slots = _gemma_slots
+        if slots.acquire(blocking=False):
+            try:
+                args = (gemma_src, image, req.question)
+                job = _pool.submit(run_gemma, *args, region=req.region, rel=req.path) if req.region else _pool.submit(run_gemma, *args)
+            except Exception:
+                slots.release()
+                raise
+            job.add_done_callback(lambda _: slots.release())
+            jobs.append(job)
 
     outcomes: List[Outcome] = []
+    if gemma_src is not None and not jobs:
+        outcomes.append(Outcome(gemma_src, reason="Gemma is busy. Please try again shortly; geometry remains available."))
     q = None
     if want_geo:
         if dxf or ifc:
-            pr = parse(req.question)
+            pr = parse(parse_question)
             q = pr.query
-            outcomes.append(run_dxf(req.path, dxf, q, pr.reason) if dxf else run_ifc(ifc, q, pr.reason))
+            outcomes.append(run_dxf(req.path, dxf, q, pr.reason, req.region) if dxf else run_ifc(ifc, q, pr.reason, req.region))
         elif engine == "geometry" or gemma_src is None:
             outcomes.append(Outcome(Source.geometry_dxf, reason="No DXF or IFC twin for this drawing."))
     elif engine in ("gemma_ft", "gemma_base"):
-        q = parse(req.question, use_llm=False).query  # only for the answer type
+        q = parse(parse_question, use_llm=False).query  # only for the answer type
 
-    outcomes += [j.result() for j in jobs]
+    for job in jobs:
+        geometry_answered = any(o.ok and o.source in (Source.geometry_dxf, Source.geometry_ifc) for o in outcomes)
+        # Geometry is usable immediately even if a previously healthy model stalls.
+        remaining = max(0.0, GEMMA_TIMEOUT - (time.perf_counter() - t0))
+        wait = min(GEMMA_COMPARE_WAIT, remaining) if geometry_answered else remaining
+        try:
+            outcomes.append(job.result(timeout=wait))
+        except TimeoutError:
+            job.cancel()
+            if not geometry_answered:
+                gemma_status.failed("gemma-ft" if gemma_src == Source.gemma_ft else "gemma-base")
+            outcomes.append(Outcome(gemma_src, reason=(
+                "Gemma comparison did not finish in time; showing the geometry answer without model confirmation."
+                if geometry_answered else "Gemma did not respond in time. Please try again shortly."
+            )))
     if jobs and _area_unprinted(req, q):
         outcomes = [
             Outcome(o.source, reason="This sheet prints no room areas, so the model can't read one off the image.")
@@ -393,4 +474,5 @@ def route(req: AskRequest) -> Answer:
         outcomes.append(Outcome(Source.gemma_ft, reason="Model endpoint not configured (MODEL_BASE_URL)."))
 
     fields = reconcile(req, q, outcomes)
-    return Answer(path=req.path, question=req.question, latency_ms=(time.perf_counter() - t0) * 1000, **fields)
+    return Answer(path=req.path, question=req.question, region=req.region,
+                  latency_ms=(time.perf_counter() - t0) * 1000, **fields)

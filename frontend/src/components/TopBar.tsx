@@ -17,12 +17,17 @@ const ENGINES: { id: Engine; label: string; title: string }[] = [
 ]
 
 export function TopBar({ engine, onEngine, health, healthError, title, subtitle }: Props) {
-  const status = healthError ? 'offline' : !health ? 'connecting' : health.mode === 'mock' ? 'mock' : 'live'
+  const gemma = health?.gemma_status
+  const model = engine === 'gemma_base' ? 'gemma-base' : 'gemma-ft'
+  const modelStatus = gemma?.models[model] ?? gemma?.status
+  const degraded = health?.mode === 'live' && modelStatus && modelStatus !== 'available'
+  const status = healthError ? 'offline' : !health ? 'connecting' : health.mode === 'mock' ? 'mock' : degraded ? 'degraded' : 'live'
   const statusText = {
     offline: 'Offline',
     connecting: 'Connecting',
     mock: 'Mock API',
     live: 'Live',
+    degraded: modelStatus === 'checking' ? 'Checking Gemma' : modelStatus === 'unconfigured' ? 'Geometry only' : `${engine === 'gemma_base' ? 'Gemma Base' : 'Gemma FT'} offline`,
   }[status]
 
   return (
@@ -57,7 +62,8 @@ export function TopBar({ engine, onEngine, health, healthError, title, subtitle 
         </div>
         <span
           className={`api-status ${status}`}
-          title={health ? `${health.gold_questions_loaded.toLocaleString()} reference questions loaded` : undefined}
+          role="status"
+          title={degraded ? 'Geometry and cached answers remain available. Gemma reconnects automatically.' : health ? `${health.gold_questions_loaded.toLocaleString()} reference questions loaded` : undefined}
         >
           <span className="dot" />
           {statusText}

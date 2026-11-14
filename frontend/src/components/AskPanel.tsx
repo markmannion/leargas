@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import type { DatasetQuestion, Drawing } from '../types'
+import type { DatasetQuestion, Drawing, Region } from '../types'
 import { TYPE_LABEL, guessLang } from '../format'
 import { useVoiceInput } from '../voice'
 
@@ -8,10 +8,14 @@ interface Props {
   busy: boolean
   onAsk: (question: string, spoken?: boolean) => void
   voice: boolean
+  region: Region | null
+  selectingRegion: boolean
+  onSelectRegion: () => void
+  onClearRegion: () => void
   children?: ReactNode
 }
 
-export function AskPanel({ drawing, busy, onAsk, voice, children }: Props) {
+export function AskPanel({ drawing, busy, onAsk, voice, region, selectingRegion, onSelectRegion, onClearRegion, children }: Props) {
   const [text, setText] = useState('')
   const [lang, setLang] = useState<string>('all')
 
@@ -24,7 +28,7 @@ export function AskPanel({ drawing, busy, onAsk, voice, children }: Props) {
 
   const submit = (q: string, spoken = false) => {
     const t = q.trim()
-    if (!t || !drawing || busy) return
+    if (!t || !drawing || busy || selectingRegion) return
     setText(t)
     onAsk(t, spoken)
   }
@@ -34,6 +38,26 @@ export function AskPanel({ drawing, busy, onAsk, voice, children }: Props) {
 
   return (
     <section className="ask">
+      <div className={`question-scope${region ? ' is-scoped' : ''}`}>
+        <div className="scope-heading">
+          <span className="field-label">Ask about</span>
+          <strong>{region ? 'Selected region' : 'Whole plan'}</strong>
+        </div>
+        <div className="scope-actions">
+          <button type="button" className={selectingRegion ? 'active' : ''} disabled={!drawing}
+            aria-pressed={selectingRegion} onClick={onSelectRegion}>
+            {selectingRegion ? 'Cancel selection' : region ? 'Redraw region' : 'Draw a region'}
+          </button>
+          {region && <button type="button" onClick={onClearRegion}>Use whole plan</button>}
+        </div>
+        <p className="scope-help" role="status">
+          {selectingRegion
+            ? 'Drag a box on the drawing. Escape cancels.'
+            : region
+              ? 'Only this region is checked. Counts use item centers; include complete rooms for areas.'
+              : 'Ask about the entire drawing, or draw a box to focus on one area.'}
+        </p>
+      </div>
       <form
         className="ask-form"
         onSubmit={(e) => {
@@ -48,7 +72,7 @@ export function AskPanel({ drawing, busy, onAsk, voice, children }: Props) {
           id="question"
           rows={3}
           value={text}
-          placeholder={drawing ? 'How many windows are on this floor?' : 'Select a drawing first'}
+          placeholder={drawing ? region ? 'How many windows are in this region?' : 'How many windows are on this floor?' : 'Select a drawing first'}
           disabled={!drawing}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
@@ -75,7 +99,7 @@ export function AskPanel({ drawing, busy, onAsk, voice, children }: Props) {
               type="button"
               className={`mic mic-${mic.state}`}
               onClick={mic.toggle}
-              disabled={!drawing || busy || mic.state === 'transcribing'}
+              disabled={!drawing || busy || selectingRegion || mic.state === 'transcribing'}
               aria-label={micLabel}
               aria-pressed={mic.state === 'recording'}
               title={micLabel}
@@ -83,7 +107,7 @@ export function AskPanel({ drawing, busy, onAsk, voice, children }: Props) {
               {mic.state === 'recording' ? <StopIcon /> : <MicIcon />}
             </button>
           )}
-          <button type="submit" className="primary" disabled={!drawing || busy || !text.trim()}>
+          <button type="submit" className="primary" disabled={!drawing || busy || selectingRegion || !text.trim()}>
             {busy ? 'Asking…' : 'Ask'}
           </button>
         </div>
@@ -110,7 +134,7 @@ export function AskPanel({ drawing, busy, onAsk, voice, children }: Props) {
           <ul className="question-list">
             {shown.map((q: DatasetQuestion & { lang: string }, i) => (
               <li key={i}>
-                <button type="button" onClick={() => submit(q.question)} disabled={busy}>
+                <button type="button" onClick={() => submit(q.question)} disabled={busy || selectingRegion}>
                   <span className="q-text">{q.question}</span>
                   <span className="q-tags mono">
                     {q.lang} · {TYPE_LABEL[q.type]}

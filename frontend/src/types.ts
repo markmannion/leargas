@@ -8,6 +8,11 @@ export type Engine = 'auto' | 'geometry' | 'gemma_ft' | 'gemma_base'
 
 export type Pt = [number, number]
 
+export interface Region {
+  bbox: [number, number, number, number]
+  page: 0
+}
+
 export type Shape =
   | { kind: 'polygon'; points: Pt[] }
   | { kind: 'bbox'; bbox: [number, number, number, number] }
@@ -31,6 +36,7 @@ export interface SourceAnswer {
 export interface Answer {
   path: string
   question: string
+  region?: Region | null
   answer: number | string | null
   unit: Unit | null
   type: QuestionType
@@ -48,6 +54,7 @@ export interface AskRequest {
   question: string
   type?: QuestionType | null
   engine?: Engine
+  region?: Region | null
 }
 
 export interface DatasetQuestion {
@@ -69,4 +76,10 @@ export interface Health {
   ok: boolean
   mode: string
   gold_questions_loaded: number
+  gemma?: boolean
+  gemma_status?: {
+    status: 'available' | 'unavailable' | 'unconfigured' | 'checking' | 'disabled'
+    available: boolean
+    models: Record<string, string>
+  }
 }
