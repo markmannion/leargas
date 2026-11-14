@@ -10,19 +10,36 @@ interface Props {
   error: string | null
   onSelect: (d: Drawing) => void
   onUploaded: (d: Drawing[]) => void
+  onDelete: (d: Drawing) => Promise<void>
   onClose: () => void
 }
 
 const PAGE = 150
 
 /** The drawing register: the list of every sheet in the set, as issued with a drawing package. */
-export function ClarRegister({ drawings, selected, loading, error, onSelect, onUploaded, onClose }: Props) {
+export function ClarRegister({ drawings, selected, loading, error, onSelect, onUploaded, onDelete, onClose }: Props) {
   const c = useCatalogue(drawings)
   const [limit, setLimit] = useState(PAGE)
   const [over, setOver] = useState(false)
   const file = useRef<HTMLInputElement>(null)
   const search = useRef<HTMLInputElement>(null)
   const up = useUpload((d) => { c.clear(); onUploaded(d) })
+  const [deleting, setDeleting] = useState<string | null>(null)
+  const [deleteNote, setDeleteNote] = useState<{ text: string; error: boolean } | null>(null)
+
+  async function remove(d: Drawing) {
+    if (deleting || !window.confirm(`Delete the uploaded drawing "${d.name}"? This removes its files from the server.`)) return
+    setDeleting(d.path)
+    setDeleteNote(null)
+    try {
+      await onDelete(d)
+      setDeleteNote({ text: `Deleted ${d.name}.`, error: false })
+    } catch (cause) {
+      setDeleteNote({ text: cause instanceof Error ? cause.message : 'Delete failed.', error: true })
+    } finally {
+      setDeleting(null)
+    }
+  }
   const rows = c.results.slice(0, limit)
   // Uploads come first; label the two groups when the list has uploads in it.
   const grouped = rows.some((d) => d.collection === 'uploads')
@@ -96,6 +113,7 @@ export function ClarRegister({ drawings, selected, loading, error, onSelect, onU
                 <th scope="col">Set</th>
                 <th scope="col">Format</th>
                 <th scope="col" className="n">Questions</th>
+                <th scope="col"><span className="cr-sr">Actions</span></th>
               </tr>
             </thead>
             <tbody>
@@ -106,7 +124,7 @@ export function ClarRegister({ drawings, selected, loading, error, onSelect, onU
                 return (
                   <Fragment key={d.path}>
                   {heading && (
-                    <tr className="cr-group"><th scope="rowgroup" colSpan={5}>{upload ? 'Uploaded files' : 'Dataset drawings'}</th></tr>
+                    <tr className="cr-group"><th scope="rowgroup" colSpan={6}>{upload ? 'Uploaded files' : 'Dataset drawings'}</th></tr>
                   )}
                   <tr aria-current={d.path === selected ? 'true' : undefined}>
                     <td className="n cr-no">{String(i + 1).padStart(width, '0')}</td>
@@ -118,6 +136,14 @@ export function ClarRegister({ drawings, selected, loading, error, onSelect, onU
                     <td>{collectionName(d.collection)}</td>
                     <td>{formatsOf(d).join(' + ')}</td>
                     <td className="n">{upload ? <span className="cr-dim">—</span> : d.questions.length}</td>
+                    <td className="cr-act">
+                      {upload && (
+                        <button type="button" className="cr-del" disabled={deleting !== null} onClick={() => void remove(d)}
+                          aria-label={`Delete ${d.name}`}>
+                          {deleting === d.path ? 'Deleting…' : 'Delete'}
+                        </button>
+                      )}
+                    </td>
                   </tr>
                   </Fragment>
                 )
@@ -134,6 +160,7 @@ export function ClarRegister({ drawings, selected, loading, error, onSelect, onU
 
       <footer className="cr-foot" role="status">
         {up.error ? <span className="cr-err">{up.error}</span>
+          : deleteNote ? <span className={deleteNote.error ? 'cr-err' : undefined}>{deleteNote.text}</span>
           : up.message ? up.message
             : over ? 'Drop to add these files to the register.'
               : 'Drop PDF, PNG, JPEG, DXF or IFC files here, up to 60 MB each. Files with the same name are paired, so plan.pdf with plan.dxf is checked against the DXF.'}

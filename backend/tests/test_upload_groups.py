@@ -166,3 +166,16 @@ def test_gemma_specialist_routing(monkeypatch, tmp_path):
     cc = AskRequest(path="data/cubicasa5k/x.png", question="q")
     assert router.gemma_threshold(cc, Source.gemma_ft, QuestionType.count, "gemma-ft-cc") == 0.6
     assert router.gemma_threshold(cc, Source.gemma_ft, QuestionType.count, "gemma-ft") == 0.75
+
+
+def test_delete_upload_removes_files_and_listing(client, tmp_path):
+    d = up(client, "plan.png", PNG).json()["drawing"]
+    assert client.delete("/drawings/upload", params={"path": d["path"]}).status_code == 204
+    assert not (tmp_path / d["path"]).exists()
+    assert all(x["path"] != d["path"] for x in client.get("/drawings").json()["drawings"])
+    assert client.delete("/drawings/upload", params={"path": d["path"]}).status_code == 404
+
+
+def test_delete_refuses_dataset_and_traversal(client):
+    for path in ("swiss/plans/a.png", "uploads/../../etc/passwd", "data/uploads/x/plan.png"):
+        assert client.delete("/drawings/upload", params={"path": path}).status_code == 400

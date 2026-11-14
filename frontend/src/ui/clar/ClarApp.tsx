@@ -118,6 +118,7 @@ export default function ClarApp() {
           <ClarRegister drawings={s.drawings} selected={s.selected?.path ?? null} loading={s.listLoading} error={s.listError}
             onSelect={(d) => { s.select(d); setRegisterOpen(false) }}
             onUploaded={(d) => { s.uploaded(d); setRegisterOpen(false) }}
+            onDelete={s.removeUpload}
             onClose={() => setRegisterOpen(false)} />
         )}
       </main>

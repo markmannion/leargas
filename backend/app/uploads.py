@@ -133,3 +133,29 @@ async def upload(request: Request, filename: str = Query(..., min_length=1, max_
         raise HTTPException(503, "The plan could not be saved. Check the server's drawing storage and try again.") from exc
     finally:
         shutil.rmtree(pending, ignore_errors=True)
+
+
+@router.delete("/drawings/upload", status_code=204)
+def delete(path: str = Query(..., min_length=1, max_length=512)) -> None:
+    """Remove an uploaded drawing. Only files under an upload folder can be deleted, never dataset drawings."""
+    from . import upload_groups
+
+    parts = Path(path.replace("\\", "/")).parts
+    if len(parts) == 4 and parts[:2] == ("data", "uploads") and re.fullmatch(r"[0-9a-f]{32}", parts[2]):
+        folder = upload_root() / parts[2]
+        if not (folder / "plan.json").is_file():
+            raise HTTPException(404, "No such upload.")
+        shutil.rmtree(folder)
+        return None
+    if len(parts) == 3 and parts[0] == upload_groups.UPLOAD_DIR and upload_groups.GROUP_RE.match(parts[1]):
+        folder = upload_groups.upload_root() / parts[1]
+        stem = Path(parts[2]).stem
+        files = upload_groups._stems(folder).get(stem, []) if folder.is_dir() else []
+        if not files:
+            raise HTTPException(404, "No such upload.")
+        for f in files + [folder / f"{stem}.png"]:
+            f.unlink(missing_ok=True)
+        if not any(folder.iterdir()):
+            folder.rmdir()
+        return None
+    raise HTTPException(400, "Only uploaded drawings can be deleted.")

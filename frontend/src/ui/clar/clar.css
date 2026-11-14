@@ -811,6 +811,11 @@ button:disabled { cursor: default; }
   text-transform: uppercase;
 }
 .cr-dim { color: var(--ink-3); }
+.cr-act { width: 1%; white-space: nowrap; text-align: right; }
+.cr-del { padding: 2px 8px; border: 1px solid var(--hair); background: none; color: var(--ink-3); font-size: 11px; font-family: var(--font-semi); cursor: pointer; }
+.cr-del:hover:not(:disabled), .cr-del:focus-visible { border-color: var(--red); color: var(--red); }
+.cr-del:disabled { opacity: 0.5; cursor: default; }
+.cr-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .cr-more { margin: 12px 18px 18px; padding: 5px 12px; border: 1px solid var(--ink); background: var(--paper); font-size: 12px; font-weight: 600; }
 .cr-foot { padding: 7px 18px 8px; border-top: 1px solid var(--ink); font-size: 12px; color: var(--ink-2); }
 .cr-err { color: var(--red); }

@@ -68,6 +68,11 @@ export const api = {
   uploadGroup: (file: File, group?: string, onProgress?: (percent: number) => void) =>
     uploadFile<UploadResult>(`/upload?name=${encodeURIComponent(file.name)}${group ? `&group=${group}` : ''}`, file, onProgress),
 
+  deleteUpload: async (path: string) => {
+    const res = await fetch(`${API_BASE}/drawings/upload?path=${encodeURIComponent(path)}`, { method: 'DELETE' })
+    if (!res.ok) await json<never>(res)
+  },
+
   drawingUrl: (path: string, page = 0) =>
     `${API_BASE}/drawing?path=${encodeURIComponent(path)}&page=${page}`,
 }

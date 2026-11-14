@@ -100,6 +100,22 @@ export function useSession() {
     if (added[0]) select(added[0])
   }, [select])
 
+  /** Delete an uploaded drawing on the server, drop it from the list, and move off it if it was open. */
+  const removeUpload = useCallback(async (d: Drawing) => {
+    await api.deleteUpload(d.path)
+    const rest = drawings.filter((x) => x.path !== d.path)
+    setDrawings(rest)
+    if (selected?.path === d.path) {
+      if (rest[0]) select(rest[0])
+      else {
+        cancel()
+        resetAnswer()
+        setSelected(null)
+        history.replaceState(null, '', location.search || location.pathname)
+      }
+    }
+  }, [drawings, selected, select, cancel, resetAnswer])
+
   const changeRegion = useCallback((next: Region | null) => {
     cancel()
     resetAnswer()
@@ -187,7 +203,7 @@ export function useSession() {
 
   return {
     drawings, total: drawings.length, listError, listLoading,
-    selected, select, uploaded,
+    selected, select, uploaded, removeUpload,
     engine, setEngine, health, healthError, connection, gemmaState,
     answer, askError, busy, pending, ask, cancel, reference,
     hovered, setHovered,

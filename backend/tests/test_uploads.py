@@ -139,3 +139,10 @@ def test_storage_failure_is_actionable(client):
     root.parent.mkdir(parents=True)
     root.write_text("not a directory")
     assert upload(client, image_bytes()).status_code == 503
+
+
+def test_delete_plan_upload(client):
+    plan = upload(client, image_bytes()).json()
+    assert client.delete("/drawings/upload", params={"path": plan["path"]}).status_code == 204
+    assert client.get("/drawings").json()["total"] == 0
+    assert client.delete("/drawings/upload", params={"path": plan["path"]}).status_code == 404
