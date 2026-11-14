@@ -165,3 +165,6 @@ junction-dataset-preview/
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# Generated from the dataset (build with: python -m app.query.build_templates)
+backend/data/
