@@ -67,6 +67,15 @@ def test_rules(q, expected):
     assert d(parse_english(q)) == expected
 
 
+@pytest.mark.parametrize("question", [
+    "Show floor areas by room", "What is the total floor area in m²?",
+    "What is the floor area?", "Measure the floor area on this plan",
+])
+def test_floor_area_entry_points(question):
+    query = parse_english(question)
+    assert query.op == "area" and query.target == "room" and query.unit == "m2"
+
+
 @pytest.mark.parametrize("q", [
     "Which materials are used in the exterior walls?",
     "What is the total length of exterior walls?",
@@ -100,6 +109,7 @@ def table(tmp_path, monkeypatch):
     out.write_text(json.dumps({"stats": stats, "templates": tbl}, ensure_ascii=False), encoding="utf-8")
     monkeypatch.setenv("LEARGAS_QUERY_TEMPLATES", str(out))
     monkeypatch.delenv("LEARGAS_LLM_BASE_URL", raising=False)
+    monkeypatch.delenv("MODEL_BASE_URL", raising=False)
     parser.templates.cache_clear()
     yield stats
     parser.templates.cache_clear()
@@ -111,7 +121,7 @@ def test_build_stats(table):
 
 def test_translated_template(table):
     r = parser.parse("Wie viele Fenster sind auf diesem Grundriss?")
-    assert r.parser == "template" and d(r.query) == {"op": "count", "target": "window", "unit": "count"}
+    assert r.parser == "template" and d(r.query) == {"op": "count", "target": "window", "unit": "count", "count_basis": "symbols"}
 
 
 def test_translated_args_reordered(table):

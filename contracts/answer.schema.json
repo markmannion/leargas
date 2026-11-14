@@ -120,6 +120,143 @@
       "title": "Evidence",
       "type": "object"
     },
+    "OpeningItem": {
+      "description": "One counted door or window: a row of the reviewable inventory and a numbered marker.",
+      "properties": {
+        "number": {
+          "description": "1-based; matches the marker on the sheet",
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "id": {
+          "description": "DXF handle of the (first) leaf, or IFC GlobalId",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "door",
+            "window"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "mark": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The occurrence's own number/tag, if the model has one",
+          "title": "Mark"
+        },
+        "type_mark": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Type Mark"
+        },
+        "type_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Type Name"
+        },
+        "level": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Level"
+        },
+        "location": {
+          "description": "Adjoining rooms/spaces, nearest first",
+          "items": {
+            "type": "string"
+          },
+          "title": "Location",
+          "type": "array"
+        },
+        "leaves": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Door leaves in this assembly; a double door is 1 item, 2 leaves",
+          "title": "Leaves"
+        },
+        "width_m": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Width M"
+        },
+        "duplicates": {
+          "description": "Ids of identical symbols drawn on top, not counted",
+          "items": {
+            "type": "string"
+          },
+          "title": "Duplicates",
+          "type": "array"
+        },
+        "evidence_index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Index into `evidence` of this item's marker",
+          "title": "Evidence Index"
+        }
+      },
+      "required": [
+        "number",
+        "id",
+        "kind"
+      ],
+      "title": "OpeningItem",
+      "type": "object"
+    },
     "PointEvidence": {
       "properties": {
         "kind": {
@@ -181,6 +318,31 @@
           },
           "minItems": 3,
           "title": "Points",
+          "type": "array"
+        },
+        "holes": {
+          "description": "Interior rings excluded from the measured area",
+          "items": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "maximum": 1.0,
+                  "minimum": 0.0,
+                  "type": "number"
+                },
+                {
+                  "maximum": 1.0,
+                  "minimum": 0.0,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "title": "Holes",
           "type": "array"
         }
       },
@@ -246,6 +408,268 @@
       "title": "Region",
       "type": "object"
     },
+    "RoomArea": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "room_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Room Id"
+        },
+        "level": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Level"
+        },
+        "value": {
+          "minimum": 0,
+          "title": "Value",
+          "type": "number"
+        },
+        "unit": {
+          "const": "m2",
+          "default": "m2",
+          "title": "Unit",
+          "type": "string"
+        },
+        "method": {
+          "enum": [
+            "printed",
+            "geometry",
+            "quantity"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "complete": {
+          "default": true,
+          "title": "Complete",
+          "type": "boolean"
+        },
+        "evidence_indices": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Evidence Indices",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "value",
+        "method"
+      ],
+      "title": "RoomArea",
+      "type": "object"
+    },
+    "SlabArea": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "mark": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mark"
+        },
+        "slab_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Slab Type"
+        },
+        "level": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Level"
+        },
+        "value": {
+          "minimum": 0,
+          "title": "Value",
+          "type": "number"
+        },
+        "unit": {
+          "const": "m2",
+          "default": "m2",
+          "title": "Unit",
+          "type": "string"
+        },
+        "method": {
+          "enum": [
+            "geometry",
+            "quantity"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "thickness_mm": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Thickness Mm"
+        },
+        "reinforcement": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reinforcement"
+        },
+        "specification_status": {
+          "default": "unknown",
+          "enum": [
+            "known",
+            "unknown"
+          ],
+          "title": "Specification Status",
+          "type": "string"
+        },
+        "references": {
+          "items": {
+            "$ref": "#/$defs/SpecificationReference"
+          },
+          "title": "References",
+          "type": "array"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        },
+        "evidence_indices": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Evidence Indices",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "value",
+        "method"
+      ],
+      "title": "SlabArea",
+      "type": "object"
+    },
+    "SlabGroup": {
+      "properties": {
+        "thickness_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Thickness Mm"
+        },
+        "reinforcement": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reinforcement"
+        },
+        "specification_status": {
+          "enum": [
+            "known",
+            "unknown"
+          ],
+          "title": "Specification Status",
+          "type": "string"
+        },
+        "value": {
+          "minimum": 0,
+          "title": "Value",
+          "type": "number"
+        },
+        "unit": {
+          "const": "m2",
+          "default": "m2",
+          "title": "Unit",
+          "type": "string"
+        },
+        "slab_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Slab Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "specification_status",
+        "value",
+        "slab_ids"
+      ],
+      "title": "SlabGroup",
+      "type": "object"
+    },
     "Source": {
       "enum": [
         "geometry_dxf",
@@ -306,6 +730,30 @@
       "title": "SourceAnswer",
       "type": "object"
     },
+    "SpecificationReference": {
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "page": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Page",
+          "type": "integer"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "label"
+      ],
+      "title": "SpecificationReference",
+      "type": "object"
+    },
     "Status": {
       "enum": [
         "verified",
@@ -331,6 +779,14 @@
     }
   },
   "properties": {
+    "openings": {
+      "description": "Door/window inventory behind a count",
+      "items": {
+        "$ref": "#/$defs/OpeningItem"
+      },
+      "title": "Openings",
+      "type": "array"
+    },
     "path": {
       "title": "Path",
       "type": "string"
@@ -349,6 +805,36 @@
         }
       ],
       "default": null
+    },
+    "area_mode": {
+      "default": "whole_rooms",
+      "enum": [
+        "whole_rooms",
+        "intersection"
+      ],
+      "title": "Area Mode",
+      "type": "string"
+    },
+    "room_areas": {
+      "items": {
+        "$ref": "#/$defs/RoomArea"
+      },
+      "title": "Room Areas",
+      "type": "array"
+    },
+    "slab_areas": {
+      "items": {
+        "$ref": "#/$defs/SlabArea"
+      },
+      "title": "Slab Areas",
+      "type": "array"
+    },
+    "slab_groups": {
+      "items": {
+        "$ref": "#/$defs/SlabGroup"
+      },
+      "title": "Slab Groups",
+      "type": "array"
     },
     "answer": {
       "anyOf": [

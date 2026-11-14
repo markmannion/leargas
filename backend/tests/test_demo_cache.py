@@ -88,6 +88,13 @@ def test_region_never_uses_whole_sheet_cache(cache_file, monkeypatch):
     assert response.headers.get("x-leargas-cache") != "hit"
 
 
+def test_room_breakdown_bypasses_scalar_cache(cache_file, monkeypatch):
+    monkeypatch.setenv("LEARGAS_DEMO_CACHE", "1")
+    response = TestClient(main.app).post("/ask", json={"path": PATH, "question": Q, "room_breakdown": True})
+    assert response.json()["answer"] is None
+    assert response.headers.get("x-leargas-cache") != "hit"
+
+
 def test_build_stores_answers_and_skips_abstentions(tmp_path):
     out = tmp_path / "c.json"
     rows = [

@@ -17,8 +17,9 @@ Point the proxy at another backend with `LEARGAS_API=http://host:port npm run de
 
 ## What it talks to
 
-Use **Upload a plan**, or drop a file on the upload area in the plan library.
-PDF, PNG, JPEG and DXF files up to 25 MiB are supported. Upload progress and
+Use **Upload plans**, or drop files on the upload area in the plan library.
+PDF, PNG, JPEG, DXF and IFC files up to 25 MiB each are supported. Select matching
+PDF and DXF files together to pair a sheet with its geometry. Upload progress and
 validation errors appear in the library. A successful upload clears library
 filters, opens the plan, and stays in the **uploads** collection after refresh.
 PDFs display page one; ask questions using the existing engine controls.
@@ -36,3 +37,11 @@ The next typed, suggested, or spoken question is limited to that selection. **Re
 the box, **Use whole plan** clears it, and Escape cancels drawing. The selection follows pan/zoom;
 switching plans clears the selection and any pending answer. Counts use item centers; include entire
 rooms when asking for their areas. Scoped answers are not compared against whole-sheet dataset answers.
+# Slab specifications
+
+Use **Show slab area by specification**, or ask **Show slab area grouped by
+thickness and reinforcement**. The answer shows grouped totals and expandable
+slab records with type, area, thickness, reinforcement, warnings and source-sheet
+links. Unknown specifications retain measured area. IFC queries cover the model
+unless a named level is requested; drawings require scaled slab zones and linked
+structural schedule/detail sheets (see the backend's structural drawing profile).

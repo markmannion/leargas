@@ -17,9 +17,9 @@ Examples
 from __future__ import annotations
 
 from enum import Enum
-from typing import List, Optional
+from typing import List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class Op(str, Enum):
@@ -86,6 +86,25 @@ class Query(BaseModel):
     numbered_only: bool = Field(False, description="Only numbered indoor rooms (also excludes shafts and voids)")
     side_area: bool = Field(False, description="Wall side area rather than footprint")
     unit: Optional[str] = Field(None, description="count | m | m2 | m3 | ft2 ...")
+    group_by: Optional[Literal["thickness_reinforcement"]] = None
+    type_mark: Optional[str] = Field(None, description="Door/window type mark, e.g. 'D01'")
+    count_basis: Literal["assemblies", "leaves", "symbols"] = Field(
+        "assemblies",
+        description="Doors/windows: physical assemblies (a double door is one), door leaves, "
+                    "or symbols as drawn (duplicates included)",
+    )
+
+    @model_validator(mode="after")
+    def _slab_grouping(self) -> "Query":
+        if self.group_by and (self.op != "area" or self.target != "slab" or self.side_area):
+            raise ValueError("Thickness/reinforcement grouping requires slab area")
+        if (self.type_mark or self.count_basis != "assemblies") and (
+            self.op != "count" or self.target not in ("door", "window")
+        ):
+            raise ValueError("Type marks and count bases apply to door/window counts")
+        if self.count_basis == "leaves" and self.target != "door":
+            raise ValueError("Leaf counts apply to doors")
+        return self
 
 
 class ParseResult(BaseModel):

@@ -107,6 +107,20 @@ def test_items_carry_evidence(model):
     assert {i.storey for i in r.items} == {"Ground Floor"} and all(i.guid for i in r.items)
 
 
+def test_room_breakdown_preserves_name_level_quantity_and_total(model, monkeypatch):
+    from pathlib import Path
+    from app import ifc, router
+
+    monkeypatch.setattr(ifc, "open_model", lambda path: model)
+    result = router.run_ifc(Path(model.path), Q(op="area", target="room", scope="level", level="Ground Floor"), None)
+    assert result.value == 32.75
+    assert [(r.room_id, r.label, r.value, r.level, r.method) for r in result.room_areas] == [
+        ("G01", "Kitchen", 20.5, "Ground Floor", "quantity"),
+        ("G02", "Bath", 12.25, "Ground Floor", "quantity"),
+    ]
+    assert all(not r.evidence_indices for r in result.room_areas)
+
+
 def test_resolve_model(tmp_path):
     (tmp_path / "acme_tower.ifc").write_text("")
     (tmp_path / "acme_tower-mep.ifc").write_text("")

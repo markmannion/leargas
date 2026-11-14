@@ -11,6 +11,22 @@ OUT = Path(__file__).resolve().parent.parent / "contracts"
 
 EXAMPLES = [
     {
+        "path": "uploads/example/slabs.ifc",
+        "question": "Show slab area grouped by thickness and reinforcement",
+        "answer": 42.0, "unit": "m2", "type": "area", "status": "partial",
+        "confidence": 0.95, "source": "geometry_ifc",
+        "slab_areas": [{
+            "id": "slab-guid", "mark": "S1", "slab_type": "RC200", "value": 42.0,
+            "method": "quantity", "thickness_mm": 200.0, "reinforcement": None,
+            "specification_status": "unknown",
+        }],
+        "slab_groups": [{
+            "thickness_mm": 200.0, "reinforcement": None, "specification_status": "unknown",
+            "value": 42.0, "slab_ids": ["slab-guid"],
+        }],
+        "explanation": "42 m² of slab area retained with an unknown reinforcement specification.",
+    },
+    {
         "path": "data/swiss_dwellings/site3387_bldg5238_floor23498.pdf",
         "question": "How many windows are shown on this floor plan?",
         "answer": 3, "unit": "count", "type": "count",

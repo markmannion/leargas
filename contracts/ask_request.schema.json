@@ -107,6 +107,27 @@
         }
       ],
       "default": null
+    },
+    "area_mode": {
+      "default": "whole_rooms",
+      "enum": [
+        "whole_rooms",
+        "intersection"
+      ],
+      "title": "Area Mode",
+      "type": "string"
+    },
+    "room_breakdown": {
+      "default": false,
+      "description": "Require a geometry-backed floor-area breakdown; bypass scalar demo answers",
+      "title": "Room Breakdown",
+      "type": "boolean"
+    },
+    "slab_breakdown": {
+      "default": false,
+      "description": "Require slab areas grouped by thickness and reinforcement",
+      "title": "Slab Breakdown",
+      "type": "boolean"
     }
   },
   "required": [

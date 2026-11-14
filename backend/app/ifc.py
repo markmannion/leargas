@@ -24,6 +24,7 @@ import ifcopenshell.util.element as E
 import ifcopenshell.util.unit as U
 
 from .query.schema import Query
+from .schema import SlabArea
 
 
 class CannotVerify(ValueError):
@@ -38,6 +39,14 @@ class Item:
     storey: Optional[str]
     value: Optional[float] = None  # this element's contribution for area/length/volume
     method: Optional[str] = None  # "qto" or "geometry"
+    room_id: Optional[str] = None
+    # doors / windows
+    mark: Optional[str] = None  # the occurrence's own number, e.g. Revit "Mark"
+    type_mark: Optional[str] = None
+    type_name: Optional[str] = None
+    leaves: Optional[int] = None
+    width_m: Optional[float] = None
+    location: List[str] = field(default_factory=list)  # adjoining spaces
 
 
 @dataclass
@@ -48,6 +57,7 @@ class Result:
     explanation: str
     model_path: str
     warnings: List[str] = field(default_factory=list)
+    slab_areas: List[SlabArea] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------- model resolution / loading
@@ -199,6 +209,15 @@ class Model:
             for n in names:
                 v = qs.get(n)
                 if isinstance(v, (int, float)) and v > 0:
+                    # A quantity may override the project unit (e.g. an mm² QTO in an m² project).
+                    qset = self.f.by_id(qs["id"])
+                    quantity = next((q for q in qset.Quantities if q.Name == n), None)
+                    unit = getattr(quantity, "Unit", None)
+                    if unit is not None:
+                        from .slab_ifc import unit_scale
+                        if getattr(unit, "UnitType", None) != unit_type:
+                            continue
+                        return float(v) * unit_scale(unit)
                     return float(v) * self._scale[unit_type]
         return None
 
@@ -221,6 +240,68 @@ class Model:
         else:
             v = None
         return float(v) if v and v > 0 else None
+
+    # --- doors / windows
+    def type_marks(self, e) -> Tuple[Optional[str], List[str]]:
+        """(the type mark to show, every value a type mark query may match) for a door/window.
+
+        Looked up in order: an explicit "Type Mark" (Revit), Pset_*Common.Reference, the type's
+        name. A query matches a whole value or its leading code ("ED05" in "ED05_100x210_w").
+        """
+        t = E.get_type(e)
+        marks: List[str] = []
+        refs: List[str] = []
+        for scope in (t, e):
+            if scope is None:
+                continue
+            for pset, props in E.get_psets(scope).items():
+                for k, v in props.items():
+                    if not isinstance(v, str) or not v.strip():
+                        continue
+                    if k.casefold() == "type mark":
+                        marks.append(v.strip())
+                    elif k == "Reference" and pset.startswith("Pset_") and pset.endswith("Common"):
+                        refs.append(v.strip())
+        names = [x.strip() for x in ((t.Name if t is not None else None), getattr(e, "ObjectType", None)) if x and x.strip()]
+        values = marks + refs + names
+        return (values[0] if values else None), values
+
+    @staticmethod
+    def _mark_matches(want: str, values: List[str]) -> bool:
+        w = _norm(want)
+        for v in values:
+            n = _norm(v)
+            if n == w or re.split(r"[\s_:\-/]+", n)[0] == w:
+                return True
+        return False
+
+    def leaves(self, e) -> Optional[int]:
+        t = E.get_type(e)
+        names = [getattr(x, attr, None) for x in (e, t) if x is not None
+                 for attr in ("OperationType", "PartitioningType")]
+        names = [str(n) for n in names if n and str(n) not in ("NOTDEFINED", "USERDEFINED")]
+        text = " ".join(names + [str(getattr(x, "Name", "") or "") for x in (e, t) if x is not None]).upper()
+        if not names and not text.strip():
+            return None
+        if "TRIPLE" in text:
+            return 3
+        if "DOUBLE" in text or "DOPPEL" in text or "TWO_PANEL" in text:
+            return 2
+        if "REVOLVING" in text:
+            return None
+        if names and any(("SINGLE" in n or "SLIDING_TO" in n or "FOLDING_TO" in n) for n in names):
+            return 1
+        return None
+
+    def adjoining_spaces(self, e) -> List[str]:
+        out: List[str] = []
+        for rel in getattr(e, "ProvidesBoundaries", None) or []:
+            sp = rel.RelatingSpace
+            if sp is not None and sp.is_a("IfcSpace"):
+                name = (self.space_names(sp) or [None])[0]
+                if name and name not in out:
+                    out.append(name)
+        return out
 
     # --- names
     @staticmethod
@@ -260,13 +341,56 @@ class Model:
                 raise CannotVerify(f"Space {q.name!r} {'not found' if not hits else 'is ambiguous'} on {scope_txt}")
             elems = hits
 
+        notes: List[str] = []
+        kind_txt = q.target
+        if q.target in ("door", "window"):
+            # One occurrence per physical door/window: types, styles and schedule tags are separate
+            # entities and never selected; a GlobalId exported twice is counted once.
+            seen, unique = set(), []
+            for e in elems:
+                if e.GlobalId not in seen:
+                    seen.add(e.GlobalId)
+                    unique.append(e)
+            if len(unique) < len(elems):
+                notes.append(f"{len(elems) - len(unique)} repeated occurrence(s) dropped")
+            elems = unique
+            if q.type_mark:
+                elems = [e for e in elems if self._mark_matches(q.type_mark, self.type_marks(e)[1])]
+                if not elems:
+                    raise CannotVerify(f"No {q.target} with type mark {q.type_mark!r} on {scope_txt}")
+                kind_txt = f"type {q.type_mark} {q.target}"
+
         def item(e, value=None, method=None) -> Item:
             st = self.storey_of(e)
-            return Item(e.GlobalId, e.is_a(), getattr(e, "Name", None), st.Name if st else None, value, method)
+            name = getattr(e, "Name", None)
+            room_id = name if q.target == "room" else None
+            if q.target == "room":
+                name = getattr(e, "LongName", None) or name
+            it = Item(e.GlobalId, e.is_a(), name, st.Name if st else None, value, method, room_id)
+            if q.target in ("door", "window"):
+                t = E.get_type(e)
+                shown, _ = self.type_marks(e)
+                it.type_mark = shown
+                it.type_name = t.Name if t is not None and t.Name else getattr(e, "ObjectType", None)
+                it.leaves = self.leaves(e)
+                width = getattr(e, "OverallWidth", None)
+                it.width_m = round(float(width) * self._scale["LENGTHUNIT"], 3) if width else None
+                it.location = self.adjoining_spaces(e)
+                marks = [v for ps in E.get_psets(e).values() for k, v in ps.items()
+                         if k == "Mark" and isinstance(v, str) and v.strip()]
+                it.mark = marks[0] if marks else None  # IFC Tag is usually a CAD element id, not a door number
+            return it
 
         if q.op == "count":
-            return Result(len(elems), "count", [item(e) for e in elems],
-                          f"{len(elems)} {q.target} element(s) on {scope_txt}", self.path)
+            items = [item(e) for e in elems]
+            note = f" ({'; '.join(notes)})" if notes else ""
+            if q.target == "door" and q.count_basis == "leaves":
+                if any(i.leaves is None for i in items):
+                    raise CannotVerify("Some doors don't state an operation type, so their leaves can't be counted")
+                n = sum(i.leaves for i in items)
+                return Result(n, "count", items, f"{n} door leaves in {len(items)} {kind_txt}(s) on {scope_txt}{note}", self.path)
+            return Result(len(elems), "count", items,
+                          f"{len(elems)} {kind_txt} element(s) on {scope_txt}{note}", self.path)
 
         key = (q.target, q.op, bool(q.side_area))
         if key not in _QTO:
@@ -282,14 +406,18 @@ class Model:
                 v, method = self.geometry(e, q.op), "geometry"
             if v is None:
                 raise CannotVerify(f"{e.is_a()} {e.GlobalId} has no {'/'.join(names)} quantity or usable geometry")
-            items.append(item(e, round(v, 6), method))
+            items.append(item(e, v if q.target == "slab" else round(v, 6), method))
             methods.add(method)
             total += v
 
         unit = _SI_UNIT[q.op]
-        return Result(round(total, 4), unit, items,
+        result = Result(round(total, 4), unit, items,
                       f"Sum of {'/'.join(names)} over {len(items)} {q.target} element(s) on {scope_txt} "
                       f"(from {', '.join(sorted(methods))})", self.path)
+        if q.target == "slab" and q.op == "area":
+            from .slab_ifc import slab_area
+            result.slab_areas = [slab_area(self, e, i) for e, i in zip(elems, items)]
+        return result
 
 
 def answer(path: str | Path, q: Query) -> Result:

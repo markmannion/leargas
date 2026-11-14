@@ -55,6 +55,7 @@ class Source(str, Enum):
 class PolygonEvidence(BaseModel):
     kind: Literal["polygon"] = "polygon"
     points: List[Point] = Field(min_length=3)
+    holes: List[List[Point]] = Field(default_factory=list, description="Interior rings excluded from the measured area")
 
 
 class BBoxEvidence(BaseModel):
@@ -107,6 +108,27 @@ class AskRequest(BaseModel):
     type: Optional[QuestionType] = Field(None, description="Hint if known; otherwise inferred")
     engine: Optional[Literal["auto", "geometry", "gemma_ft", "gemma_base"]] = "auto"
     region: Optional[Region] = None
+    area_mode: Literal["whole_rooms", "intersection"] = "whole_rooms"
+    room_breakdown: bool = Field(False, description="Require a geometry-backed floor-area breakdown; bypass scalar demo answers")
+    slab_breakdown: bool = Field(False, description="Require slab areas grouped by thickness and reinforcement")
+
+    @model_validator(mode="after")
+    def _area_selection(self) -> "AskRequest":
+        if self.area_mode == "intersection" and self.region is None:
+            raise ValueError("intersection area measurement requires a region")
+        return self
+
+
+class RoomArea(BaseModel):
+    id: str
+    label: str
+    room_id: Optional[str] = None
+    level: Optional[str] = None
+    value: float = Field(ge=0, allow_inf_nan=False)
+    unit: Literal["m2"] = "m2"
+    method: Literal["printed", "geometry", "quantity"]
+    complete: bool = True
+    evidence_indices: List[int] = Field(default_factory=list)
 
 
 class SourceAnswer(BaseModel):
@@ -118,12 +140,70 @@ class SourceAnswer(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
 
 
+class SpecificationReference(BaseModel):
+    path: str
+    page: int = Field(0, ge=0)
+    label: str
+
+
+class SlabArea(BaseModel):
+    id: str
+    mark: Optional[str] = None
+    slab_type: Optional[str] = None
+    level: Optional[str] = None
+    value: float = Field(ge=0, allow_inf_nan=False)
+    unit: Literal["m2"] = "m2"
+    method: Literal["geometry", "quantity"]
+    thickness_mm: Optional[float] = Field(None, gt=0, allow_inf_nan=False)
+    reinforcement: Optional[str] = None
+    specification_status: Literal["known", "unknown"] = "unknown"
+    references: List[SpecificationReference] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
+    evidence_indices: List[int] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _specification_status(self) -> "SlabArea":
+        self.specification_status = "known" if self.thickness_mm is not None and self.reinforcement else "unknown"
+        return self
+
+
+class SlabGroup(BaseModel):
+    thickness_mm: Optional[float] = None
+    reinforcement: Optional[str] = None
+    specification_status: Literal["known", "unknown"]
+    value: float = Field(ge=0, allow_inf_nan=False)
+    unit: Literal["m2"] = "m2"
+    slab_ids: List[str]
+
+
+class OpeningItem(BaseModel):
+    """One counted door or window: a row of the reviewable inventory and a numbered marker."""
+
+    number: int = Field(ge=1, description="1-based; matches the marker on the sheet")
+    id: str = Field(description="DXF handle of the (first) leaf, or IFC GlobalId")
+    kind: Literal["door", "window"]
+    mark: Optional[str] = Field(None, description="The occurrence's own number/tag, if the model has one")
+    type_mark: Optional[str] = None
+    type_name: Optional[str] = None
+    level: Optional[str] = None
+    location: List[str] = Field(default_factory=list, description="Adjoining rooms/spaces, nearest first")
+    leaves: Optional[int] = Field(None, ge=1, description="Door leaves in this assembly; a double door is 1 item, 2 leaves")
+    width_m: Optional[float] = Field(None, gt=0, allow_inf_nan=False)
+    duplicates: List[str] = Field(default_factory=list, description="Ids of identical symbols drawn on top, not counted")
+    evidence_index: Optional[int] = Field(None, ge=0, description="Index into `evidence` of this item's marker")
+
+
 class Answer(BaseModel):
     model_config = ConfigDict(use_enum_values=True)
 
+    openings: List[OpeningItem] = Field(default_factory=list, description="Door/window inventory behind a count")
     path: str
     question: str
     region: Optional[Region] = None
+    area_mode: Literal["whole_rooms", "intersection"] = "whole_rooms"
+    room_areas: List[RoomArea] = Field(default_factory=list)
+    slab_areas: List[SlabArea] = Field(default_factory=list)
+    slab_groups: List[SlabGroup] = Field(default_factory=list)
     answer: Union[int, float, str, None] = Field(description="null when status is cannot_verify")
     unit: Optional[Unit] = Field(None, description="null for text answers")
     type: QuestionType

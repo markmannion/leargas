@@ -2,6 +2,59 @@
 
 FastAPI app, answer schema and scorer.
 
+## Slab geometry and specifications
+
+Ask **“Show slab area grouped by thickness and reinforcement”** using Auto or
+Geometry, or use the inspector's **Show slab area by specification** action.
+`POST /ask` also accepts `slab_breakdown: true` with a slab-area question.
+The response has `slab_areas` (one slab/zone per row: area, mark, type, thickness
+in mm, reinforcement, quantity/geometry basis, warnings, and source references)
+and `slab_groups` (area totals grouped by thickness/reinforcement with member IDs).
+The numeric `answer` is total measured slab area in m². Groups sum unrounded
+areas. A missing or conflicting thickness/reinforcement stays `null`, appears as
+**Unknown specification**, and makes the answer `partial` while retaining area.
+An unmeasurable slab prevents a misleading partial area sum. Scalar model,
+mock and demo-cache responses cannot substitute for this takeoff.
+
+IFC takes `NetArea` base quantities, falling back to footprint geometry. Length,
+area and explicit property/quantity units are converted independently. Own
+occurrence properties/material layers take precedence over type defaults.
+The extractor inspects slab thickness/width quantities and properties, complete
+`IfcMaterialLayerSet` / `IfcMaterialLayerSetUsage` layers, reinforcement property
+sets, `IfcReinforcementDefinitionProperties` cross sections, and bars/meshes
+explicitly linked through decomposition, nesting, product assignments, element
+connections or a group containing only this slab. Nearby reinforcement is not
+assigned by proximity. These structures must actually be populated in the export;
+concrete material and the presence of a slab do not establish reinforcement.
+See [buildingSMART's slab definition](https://standards.buildingsmart.org/IFC/RELEASE/IFC4/ADD2_TC1/HTML/schema/ifcsharedbldgelements/lexical/ifcslab.htm).
+Unscoped IFC questions cover the model. Add `on level 'Ground Floor'` to the
+grouped question to restrict it to a named storey. IFC has no sheet overlays yet.
+
+The structural drawing profile uses DXF closed polylines on `SLAB_OUTLINE`,
+cutouts on `SLAB_OPENING`, and TEXT/MTEXT slab marks on `SLAB_MARK` inside each
+zone. `$INSUNITS` must declare drawing units. Overlapping or invalid zones are
+refused. Unmarked zones retain their area with an unknown specification.
+Schedules and details can be on other sheets uploaded into the **same group**
+with `/upload?name=structure.pdf&group=<first-upload-group>`. Outside uploads,
+only same-stem twins are inspected. Schedule text comes from DXF layers
+`SLAB_SCHEDULE` / `SLAB_DETAIL`, text-based PDF pages, or native PDF tables with
+Mark, Type, Thickness (mm), Reinforcement and Detail columns. For example:
+
+```text
+Mark | Type | Thickness | Reinforcement | Detail
+S1 | RC | 200 mm | - | D1
+S2 | RC | 250 mm | T16 @ 200 EW | -
+Detail D1 | Reinforcement: T12 @ 200 EW top and bottom
+```
+
+Keyed rows such as `S1 | Type: RC | Thickness: 200 mm | Detail: D1` also work.
+Thickness requires explicit units in the value or column header. Matching marks
+link geometry → schedule → detail; references retain file, page and source text.
+Conflicting entries or unresolved detail links leave reinforcement unknown.
+Aligned DXF outlines can be highlighted from the slab inventory. This profile
+does not OCR scanned schedules, infer slab zones from room outlines, or measure
+raster-only plans. Selected-region/intersection slab takeoffs are not supported.
+
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r backend/requirements.txt
 LEARGAS_QUESTIONS=datasets/junction-dataset/questions.jsonl .venv/bin/uvicorn app.main:app --app-dir backend --reload
@@ -10,7 +63,9 @@ cd backend && ../.venv/bin/pytest -q
 
 ## Endpoints
 
-- `POST /ask` `{path, question, type?, engine?}` → `Answer`. **Mock for now**: returns the gold answer with placeholder evidence if the question is in `LEARGAS_QUESTIONS`, otherwise `cannot_verify`.
+- `POST /ask` `{path, question, type?, engine?}` → `Answer`, through the router (`app/router.py`). `LEARGAS_MOCK=1` returns the gold answer with placeholder evidence instead.
+- `POST /upload?name=<file>[&group=<id>]`, raw file bytes as the body → `{group, drawing}`. PNG/JPG/PDF/DXF/IFC, up to 60 MB. Stored as `uploads/<group>/<stem><ext>` under the data root, so `drawing.path` works with `/ask` and `/drawing`, and uploads are listed first in `/drawings`. Send twins (`plan.pdf` + `plan.dxf`) with the first upload's `group` and they pair like dataset twins. A PDF gets a PNG twin for Gemma if PyMuPDF is installed.
+- Gemma is `verified` only on dataset drawings asked a question that matches a dataset template (where its threshold was calibrated). On uploads or free-form questions it tops out at `partial`. `LEARGAS_GEMMA_CALIBRATED_ONLY=0` turns this off. `/health` reports `query_templates`: if that's 0, run `build_templates`.
 - `GET /schema` — JSON Schema for the request and `Answer`.
 - `GET /health`
 
@@ -93,6 +148,40 @@ registration, so region questions can use the raster model instead. The raster m
 the crop of the displayed image/PDF page, and its evidence points are mapped back onto the full sheet.
 Whole-sheet demo-cache and mock gold answers are never used for region requests.
 
+## Floor-area breakdowns and selection modes
+
+The inspector's **Show floor areas by room** action requests a geometry-backed
+takeoff. Each `room_areas` row contains the room ID/name, area in m², quantity
+basis (`printed`, `geometry`, or IFC `quantity`), completeness, and indices into
+the answer's sheet evidence. Rows can be clicked to highlight their polygons.
+IFC rows also include the storey; they have no sheet highlights until 2D
+registration is available. Ordinary geometry-backed room-area questions return
+the same breakdown, including existing room/apartment filters.
+
+```json
+{"path":"data/swiss_dwellings/floor.pdf","question":"Show floor areas by room","room_breakdown":true,"area_mode":"whole_rooms"}
+```
+
+With a `region`, `area_mode` controls how floor areas are measured:
+
+- `whole_rooms` (default): sum complete rooms using printed m² where available,
+  otherwise CAD floor geometry. If the selection cuts a relevant room, refuse
+  the entire measurement and explain how to redraw it or switch modes.
+- `intersection`: measure the intersection of the selected box and the actual
+  numbered-room CAD floor polygons in metres. Cut rooms are marked
+  `complete: false`; enclosed voids are removed. Printed areas are never
+  prorated. This measures floor space inside the box, not the box itself or
+  space outside known floor polygons. A selection containing no room floor
+  space returns 0 m².
+
+`intersection` requires a region, a floor-area question, supported metre-based
+DXF geometry, and confident registration to the displayed sheet. IFC region
+measurement and uncalibrated raster-only measurement return `cannot_verify`.
+Explicit breakdown/intersection requests require Auto or Geometry and bypass
+scalar demo answers and model inference. Polygon evidence can contain `holes`
+for voids and multiple polygons for disconnected selected portions. The total
+is rounded to 0.01 m²; row quantities retain up to six decimal places.
+
 `GET /drawings` supports `limit` (up to 5000) and `offset`; `total` is the full catalogue count.
 
 ## Scorer
@@ -141,7 +230,7 @@ LEARGAS_DEMO_CACHE=1 .venv/bin/uvicorn app.main:app --app-dir backend --port 801
 
 1. **template**: an exact match in the multilingual template table. Confidence 0.99.
 2. **rules**: keyword rules for English questions, which also cover paraphrases. Confidence 0.85.
-3. **llm**: Gemma over an OpenAI-compatible endpoint. It only runs if `LEARGAS_LLM_BASE_URL` is set (`LEARGAS_LLM_MODEL` defaults to `gemma-base`). Confidence 0.7.
+3. **llm**: Gemma over an OpenAI-compatible endpoint. It runs whenever `LEARGAS_LLM_BASE_URL` or, failing that, `MODEL_BASE_URL` is set (key: `LEARGAS_LLM_API_KEY`, else `MODEL_API_KEY`; `LEARGAS_LLM_MODEL` defaults to `gemma-base`, so gemma-base must be served). Confidence 0.7.
 4. **none**: the caller should answer `cannot_verify`.
 
 The template table is built from the dataset, so it is gitignored. Build it once per machine:

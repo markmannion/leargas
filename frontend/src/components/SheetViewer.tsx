@@ -10,6 +10,7 @@ const MAX_ZOOM = 12
 interface Props {
   src: string | null
   evidence: Evidence[]
+  highlighted?: number[]
   page: number
   hovered: number | null
   onHover: (i: number | null) => void
@@ -32,7 +33,7 @@ export function sourceClass(s?: Source | null): string {
   return 'src-mock'
 }
 
-export function SheetViewer({ src, evidence, page, hovered, onHover, renderNote, region, selectingRegion, onRegionChange, onSelectionModeChange }: Props) {
+export function SheetViewer({ src, evidence, highlighted, page, hovered, onHover, renderNote, region, selectingRegion, onRegionChange, onSelectionModeChange }: Props) {
   const frame = useRef<HTMLDivElement>(null)
   // Load state is keyed by src, so a cached image that loads before effects run can't be clobbered.
   const [loaded, setLoaded] = useState<{ src: string; aspect: number } | null>(null)
@@ -273,8 +274,8 @@ export function SheetViewer({ src, evidence, page, hovered, onHover, renderNote,
                   w={BASE_W}
                   h={H}
                   k={view.k}
-                  active={hovered === i}
-                  dimmed={hovered !== null && hovered !== i}
+                  active={hovered === i || Boolean(highlighted?.includes(i))}
+                  dimmed={hovered !== null && hovered !== i && !highlighted?.includes(i)}
                   onHover={onHover}
                 />
               ))}
@@ -402,7 +403,11 @@ function EvidenceMark({
   } else {
     const pts = shape.points.map(([x, y]) => `${x * w},${y * h}`).join(' ')
     anchor = [shape.points[0][0] * w, shape.points[0][1] * h]
-    body = <polygon points={pts} className="mark-area" strokeWidth={1.5 * s} />
+    body = shape.holes?.length ? (
+      <path d={[shape.points, ...shape.holes].map((ring) =>
+        ring.map(([x, y], i) => `${i ? 'L' : 'M'}${x * w},${y * h}`).join(' ') + 'Z').join(' ')}
+        fillRule="evenodd" clipRule="evenodd" className="mark-area" strokeWidth={1.5 * s} />
+    ) : <polygon points={pts} className="mark-area" strokeWidth={1.5 * s} />
   }
 
   const tag = String(index + 1)

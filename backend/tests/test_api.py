@@ -56,6 +56,17 @@ def test_region_mock_does_not_reuse_whole_sheet_gold(client):
     assert response.json()["region"]["bbox"] == [.1, .1, .5, .5]
 
 
+def test_exact_area_requires_a_region(client):
+    response = client.post("/ask", json={"path": "p", "question": "What is the floor area?", "area_mode": "intersection"})
+    assert response.status_code == 422
+
+
+def test_mock_cannot_supply_room_breakdown(client):
+    response = client.post("/ask", json={"path": "data/cubicasa5k/x.png", "question": "How many windows?",
+                                         "room_breakdown": True})
+    assert response.json()["answer"] is None and response.json()["room_areas"] == []
+
+
 def test_drawing_catalogue_pagination_reaches_last_plan(client, monkeypatch):
     catalogue = [{"path": f"data/plan-{index}.png"} for index in range(7)]
     monkeypatch.setattr(drawings, "_catalogue", lambda: catalogue)

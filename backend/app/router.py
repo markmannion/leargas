@@ -23,7 +23,7 @@ import os
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from pathlib import Path
 from threading import BoundedSemaphore
@@ -39,8 +39,12 @@ from .schema import (
     Evidence,
     PointEvidence,
     PolygonEvidence,
+    OpeningItem,
     QuestionType,
     Region,
+    RoomArea,
+    SlabArea,
+    SlabGroup,
     Source,
     SourceAnswer,
     Status,
@@ -48,15 +52,27 @@ from .schema import (
 
 AGREE_TOL = 0.02  # relative, matches the official scoring tolerance
 GEOMETRY_CONFIDENCE = 0.95
-# gemma-base is ~93% right at confidence >= 0.99 but only ~58% at 0.8-0.95 (957 held-out answers,
-# results/calibration_gemma-base.json), so anything lower lets wrong answers through as verified.
-GEMMA_VERIFIED = float(os.environ.get("LEARGAS_GEMMA_VERIFIED", 0.99))
+# The `verified` bar for a Gemma-only answer is the calibrated 95%-precision threshold for that model,
+# source and question type (results/calibration_<label>.json via model.gemma_engine): e.g. run 1 is
+# 0.80 on CubiCasa counts and 0.92 on swiss counts, gemma-base ~0.99. A single fixed 0.99 marked
+# most of run 1's correct answers partial. LEARGAS_GEMMA_VERIFIED, if set, overrides it everywhere;
+# GEMMA_VERIFIED is the fallback when no calibration file is found.
+GEMMA_VERIFIED_OVERRIDE = os.environ.get("LEARGAS_GEMMA_VERIFIED")
+GEMMA_VERIFIED = float(GEMMA_VERIFIED_OVERRIDE or 0.99)
+# Which calibration file each served model uses. Run 2 is also served as gemma-ft: point this at
+# its own calibration (LEARGAS_GEMMA_FT_LABEL=gemma-ft-run2) when it's swapped in.
+GEMMA_LABELS = {Source.gemma_ft: os.environ.get("LEARGAS_GEMMA_FT_LABEL", "gemma-ft"), Source.gemma_base: "gemma-base"}
 GEMMA_PARTIAL = float(os.environ.get("LEARGAS_GEMMA_PARTIAL", 0.5))
 GEMMA_TIMEOUT = float(os.environ.get("LEARGAS_GEMMA_TIMEOUT", 15))
 GEMMA_COMPARE_WAIT = float(os.environ.get("LEARGAS_GEMMA_COMPARE_WAIT", 1))
 # Run 1 and every baseline were prompted without the points addendum; only a model trained with
 # points (run 2) should get it.
 GEMMA_POINTS = os.environ.get("LEARGAS_GEMMA_POINTS", "0") == "1"
+# Gemma's thresholds were calibrated on held-out dataset questions about dataset drawings. Outside
+# that (an uploaded sheet, or a question no dataset template matches) a high confidence means
+# nothing measured, so such answers top out at `partial`. Set to 0 to trust the threshold anyway.
+GEMMA_CALIBRATED_ONLY = os.environ.get("LEARGAS_GEMMA_CALIBRATED_ONLY", "1") != "0"
+CALIBRATED_SOURCES = ("data/cubicasa5k/", "data/swiss_dwellings/")
 IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg")
 
 _pool = ThreadPoolExecutor(max_workers=8)
@@ -74,6 +90,10 @@ class Outcome:
     evidence: List[Evidence] = field(default_factory=list)
     explanation: Optional[str] = None
     reason: Optional[str] = None
+    room_areas: List[RoomArea] = field(default_factory=list)
+    slab_areas: List[SlabArea] = field(default_factory=list)
+    slab_groups: List[SlabGroup] = field(default_factory=list)
+    openings: List[OpeningItem] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -92,7 +112,7 @@ def dxf_twin(rel: str) -> Optional[Path]:
 
 
 def ifc_model(rel: str) -> Optional[Path]:
-    if "/ifc_models/" not in f"/{rel}" and not rel.lower().endswith(".ifc"):
+    if "/ifc_models/" not in f"/{rel}" and not rel.lower().endswith(".ifc") and not _abs(rel).with_suffix(".ifc").is_file():
         return None
     from .ifc import CannotVerify, resolve_model
 
@@ -172,22 +192,46 @@ def _dxf_evidence(rel: str, dxf: Path, drawing, item_ids: List[str]) -> List[Evi
 
 
 def run_dxf(rel: str, dxf: Path, q: Optional[Query], parse_reason: Optional[str],
-            region: Optional[Region] = None) -> Outcome:
+            region: Optional[Region] = None, area_mode: str = "whole_rooms") -> Outcome:
     out = Outcome(Source.geometry_dxf)
     if q is None:
         out.reason = f"Question not understood as a geometry query ({parse_reason or 'no parse'})."
         return out
+    if q.op == "area" and q.target == "slab":
+        return run_slab_drawing(rel, dxf, q, region, area_mode)
     from .dxf import CannotVerify
     from .query.adapters import to_dxf
 
     dq = to_dxf(q)
+    if dq is None and q.type_mark:
+        out.reason = (f"DXF: this drawing's {q.target} symbols carry no type marks, so {q.type_mark!r} "
+                      "can't be checked. Ask for all doors/windows to get the numbered inventory.")
+        return out
+    if dq is None and q.level and q.target in ("door", "window"):
+        out.reason = "DXF: a 2D floor plan sheet has no named levels; ask about this plan instead."
+        return out
     if dq is None:
         out.reason = f"The DXF engine can't express {q.op} of {q.target} with these filters."
         return out
     try:
         drawing = _dxf_drawing(str(dxf))
+        if area_mode == "intersection":
+            dq = replace(dq, area_source="geometry")
         r = drawing.query(dq)
-        if region is not None:
+        if dq.operation == "area" and dq.kind == "room":
+            from .floor_areas import measure_rooms
+
+            try:
+                norm = _dxf_normalizer(rel, dxf)
+            except CannotScope:
+                if region:
+                    raise
+                norm = None
+            value, rows, evidence, explanation = measure_rooms(drawing, dq, r, norm, region, area_mode)
+            out.value, out.unit, out.confidence = value, "m2", GEOMETRY_CONFIDENCE
+            out.room_areas, out.evidence, out.explanation = rows, evidence, explanation
+            return out
+        elif region is not None:
             r = scope_dxf(r, dq, drawing, _dxf_normalizer(rel, dxf), region)
     except (CannotVerify, CannotScope) as e:
         out.reason = f"DXF: {e}"
@@ -197,10 +241,48 @@ def run_dxf(rel: str, dxf: Path, q: Optional[Query], parse_reason: Optional[str]
         return out
     out.value, out.unit, out.confidence = r.value, r.unit, GEOMETRY_CONFIDENCE
     out.explanation = r.explanation
+    if dq.operation == "count" and dq.kind in ("door", "window"):
+        from .openings import dxf_inventory
+
+        try:
+            norm = _dxf_normalizer(rel, dxf)
+        except CannotScope:
+            norm = None
+        try:
+            out.openings, out.evidence, note = dxf_inventory(drawing, r.item_ids, norm)
+            out.explanation += note
+        except Exception:
+            out.openings, out.evidence = [], []  # the count stands without its inventory
+        return out
     try:
         out.evidence = _dxf_evidence(rel, dxf, drawing, r.item_ids)
     except Exception:
         out.evidence = []  # evidence is best effort; the answer stands without it
+    return out
+
+
+def run_slab_drawing(rel, dxf, q, region=None, area_mode="whole_rooms") -> Outcome:
+    from .slab_drawings import measure
+    from .slabs import group_slabs, slab_explanation
+
+    out = Outcome(Source.geometry_dxf)
+    if region or area_mode == "intersection" or q.scope != "plan" or any((
+        q.level, q.model, q.name, q.label, q.room_id, q.room_type, q.apartment,
+        q.exclude_outdoor, q.numbered_only, q.side_area,
+    )):
+        out.reason = "Slab drawing takeoffs currently require the whole plan without room or level filters."
+        return out
+    try:
+        try:
+            norm = _dxf_normalizer(rel, dxf)
+        except CannotScope:
+            norm = None
+        out.value, out.slab_areas, out.evidence = measure(dxf, drawings.data_root(), norm)
+        out.slab_groups = group_slabs(out.slab_areas)
+        out.unit, out.confidence = "m2", GEOMETRY_CONFIDENCE
+        out.explanation = slab_explanation(out.slab_areas)
+    except Exception as e:
+        out.reason = f"Slab drawing takeoff: {e}"
     return out
 
 
@@ -225,6 +307,23 @@ def run_ifc(model: Path, q: Optional[Query], parse_reason: Optional[str],
         return out
     out.value, out.unit, out.confidence = r.value, r.unit, GEOMETRY_CONFIDENCE
     out.explanation = r.explanation
+    if q.op == "area" and q.target == "slab":
+        from math import fsum
+        from .slabs import group_slabs, slab_explanation
+
+        out.slab_areas = r.slab_areas
+        out.slab_groups = group_slabs(out.slab_areas)
+        out.value = fsum(row.value for row in out.slab_areas)
+        out.explanation = f"{slab_explanation(out.slab_areas)} {r.explanation}."
+    if q.op == "count" and q.target in ("door", "window"):
+        from .openings import ifc_inventory
+
+        out.openings = ifc_inventory(r.items, q.target)
+    if q.op == "area" and q.target == "room":
+        out.room_areas = [RoomArea(
+            id=item.guid, label=item.name or "Room", room_id=item.room_id, level=item.storey,
+            value=item.value, method="quantity" if item.method == "qto" else "geometry",
+        ) for item in r.items]
     return out
 
 
@@ -360,7 +459,39 @@ def _source_answer(o: Outcome, qtype: QuestionType) -> SourceAnswer:
                         unit=_unit(o.unit, qtype) if o.ok else None, confidence=o.confidence if o.ok else 0.0)
 
 
-def reconcile(req: AskRequest, q: Optional[Query], outcomes: List[Outcome]) -> dict:
+def gemma_calibrated(req: AskRequest) -> bool:
+    """True when Gemma's confidence threshold was measured on this kind of drawing and question."""
+    if not GEMMA_CALIBRATED_ONLY:
+        return True
+    if not req.path.startswith(CALIBRATED_SOURCES):
+        return False
+    if req.region is not None:  # a crop plus extra instructions: not what the thresholds were measured on
+        return False
+    return parse(req.question, use_llm=False).parser == "template"
+
+
+def gemma_threshold(req: AskRequest, source: Source, qtype: QuestionType) -> float:
+    """Calibrated `verified` threshold for this model on this kind of drawing and question."""
+    if GEMMA_VERIFIED_OVERRIDE:
+        return GEMMA_VERIFIED
+    if _import_model_pkg() is None:
+        return GEMMA_VERIFIED
+    try:
+        from model import common, gemma_engine
+    except Exception:
+        return GEMMA_VERIFIED
+    t = qtype.value
+    if common.source_of(req.path) == "swiss_dwellings" and t == "area":
+        t = "area_printed" if common.prints_areas(req.path) else "area_unprinted"
+    th = gemma_engine._calibration(GEMMA_LABELS.get(source, "gemma-ft"))
+    if not th:
+        return GEMMA_VERIFIED
+    v = th.get(f"{common.source_of(req.path)}/{t}", th.get("ALL"))
+    # null = no threshold reached 95% precision on that slice, so it can't be verified at all
+    return float(v) if v is not None else 1.01
+
+
+def reconcile(req: AskRequest, q: Optional[Query], outcomes: List[Outcome], calibrated: bool = True) -> dict:
     geo = next((o for o in outcomes if o.source in (Source.geometry_dxf, Source.geometry_ifc)), None)
     gem = next((o for o in outcomes if o.source in (Source.gemma_ft, Source.gemma_base)), None)
     first = next((o for o in outcomes if o.ok), None)
@@ -368,9 +499,12 @@ def reconcile(req: AskRequest, q: Optional[Query], outcomes: List[Outcome]) -> d
     sources = [_source_answer(o, qtype) for o in outcomes] if len(outcomes) > 1 else []
 
     def answer(o: Outcome, status: Status, conf: float, explanation: str, evidence=None) -> dict:
+        if o.slab_areas and status == Status.verified and any(r.specification_status == "unknown" for r in o.slab_areas):
+            status = Status.partial
         return dict(answer=_value(o.value, qtype), unit=_unit(o.unit, qtype), type=qtype, status=status,
                     confidence=conf, source=o.source, evidence=o.evidence if evidence is None else evidence,
-                    explanation=explanation, sources=sources)
+                    room_areas=o.room_areas, slab_areas=o.slab_areas, slab_groups=o.slab_groups,
+                    openings=o.openings, explanation=explanation, sources=sources)
 
     if geo and geo.ok and gem and gem.ok:
         if agree(geo, gem):
@@ -385,8 +519,13 @@ def reconcile(req: AskRequest, q: Optional[Query], outcomes: List[Outcome]) -> d
         return answer(geo, Status.verified, geo.confidence, f"{geo.explanation}{note}")
     if gem and gem.ok:
         note = f" Geometry could not check it: {geo.reason}" if geo and geo.reason else ""
-        if gem.confidence >= GEMMA_VERIFIED:
+        bar = gemma_threshold(req, gem.source, qtype)
+        if gem.confidence >= bar and calibrated:
             return answer(gem, Status.verified, gem.confidence, f"{gem.explanation}{note}")
+        if gem.confidence >= bar:
+            return answer(gem, Status.partial, gem.confidence,
+                          f"{gem.explanation} Not verified: the model's confidence is only calibrated on "
+                          f"dataset-style questions about dataset drawings.{note}")
         if gem.confidence >= GEMMA_PARTIAL:
             return answer(gem, Status.partial, gem.confidence, f"{gem.explanation} Low confidence.{note}")
         reasons = [
@@ -418,13 +557,72 @@ def _area_unprinted(req: AskRequest, q: Optional[Query]) -> bool:
     return common.prints_areas(req.path) is False
 
 
+def slab_takeoff_requested(req: AskRequest) -> bool:
+    if req.slab_breakdown:
+        return True
+    q = parse(req.question, use_llm=False).query
+    if q and q.group_by:
+        return True
+    # Unrecognized specification questions must not degrade to a scalar raster prediction.
+    import re
+    return bool(re.search(r"\bslabs?\b", req.question, re.I) and re.search(
+        r"\b(?:thickness|reinforcement|rebar|specifications?)\b", req.question, re.I))
+
+
 def route(req: AskRequest) -> Answer:
     t0 = time.perf_counter()
+    _import_model_pkg()  # loads the repo .env, so MODEL_BASE_URL also enables the LLM parser
     engine = req.engine or "auto"
     parse_question = geometry_question(req.question) if req.region else req.question
     dxf = dxf_twin(req.path)
     ifc = None if dxf else ifc_model(req.path)
     image = raster_image(req.path)
+
+    if slab_takeoff_requested(req):
+        pr = parse(parse_question, use_llm=False)
+        q = pr.query
+        if q is None or q.op != "area" or q.target != "slab":
+            out = Outcome(Source.geometry_dxf, reason="Ask: Show slab area grouped by thickness and reinforcement.")
+        elif engine not in ("auto", "geometry"):
+            out = Outcome(Source.geometry_dxf, reason="Slab specifications require the Auto or Geometry engine.")
+        elif req.region or req.area_mode == "intersection":
+            out = Outcome(Source.geometry_dxf, reason="Slab specification takeoffs currently require the whole plan or an IFC level.")
+        elif (slab_ifc := ifc_model(req.path)) is not None:
+            out = run_ifc(slab_ifc, q, pr.reason)
+        elif dxf:
+            out = run_dxf(req.path, dxf, q, pr.reason)
+        else:
+            out = Outcome(Source.geometry_dxf, reason=(
+                "Slab takeoff needs an IFC model with slab quantities/geometry or scaled DXF SLAB_OUTLINE zones. "
+                "Link SLAB_MARK labels to structural schedules/details in the same upload group. "
+                "A raster sheet alone cannot verify slab area or reinforcement."
+            ))
+        fields = reconcile(req, q, [out])
+        return Answer(path=req.path, question=req.question, region=req.region, area_mode=req.area_mode,
+                      latency_ms=(time.perf_counter() - t0) * 1000, **fields)
+
+    # Explicit takeoff requests require geometry. A scalar model/cache answer
+    # cannot supply a room inventory or measure a partial-room footprint.
+    if req.room_breakdown or req.area_mode == "intersection":
+        pr = parse(parse_question, use_llm=False)
+        q = pr.query
+        if q is None or q.op != "area" or q.target not in ("room", "apartment"):
+            out = Outcome(Source.geometry_dxf, reason="Choose a floor-area question to measure rooms or their selected portions.")
+        elif engine not in ("auto", "geometry"):
+            out = Outcome(Source.geometry_dxf, reason="Floor-area breakdowns and exact selected areas require the Auto or Geometry engine.")
+        elif dxf:
+            out = run_dxf(req.path, dxf, q, pr.reason, req.region, req.area_mode)
+        elif ifc:
+            out = run_ifc(ifc, q, pr.reason, req.region)
+        else:
+            out = Outcome(Source.geometry_dxf, reason=(
+                "Floor-area measurement needs a supported, scaled DXF or IFC model. "
+                "This raster sheet has no registered CAD floor polygons; pixel dimensions and printed room m² "
+                "cannot verify an exact selected area or a room breakdown."
+            ))
+        fields = reconcile(req, q, [out])
+        return Answer(path=req.path, question=req.question, region=req.region, area_mode=req.area_mode,
+                      latency_ms=(time.perf_counter() - t0) * 1000, **fields)
 
     want_geo = engine in ("auto", "geometry")
     gemma_src = {"gemma_ft": Source.gemma_ft, "gemma_base": Source.gemma_base}.get(engine)
@@ -482,6 +680,7 @@ def route(req: AskRequest) -> Answer:
     if engine == "auto" and gemma_src is None and not (dxf or ifc):
         outcomes.append(Outcome(Source.gemma_ft, reason="Model endpoint not configured (MODEL_BASE_URL)."))
 
-    fields = reconcile(req, q, outcomes)
-    return Answer(path=req.path, question=req.question, region=req.region,
+    gem_ok = any(o.ok for o in outcomes if o.source in (Source.gemma_ft, Source.gemma_base))
+    fields = reconcile(req, q, outcomes, calibrated=gemma_calibrated(req) if gem_ok else True)
+    return Answer(path=req.path, question=req.question, region=req.region, area_mode=req.area_mode,
                   latency_ms=(time.perf_counter() - t0) * 1000, **fields)

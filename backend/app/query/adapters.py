@@ -46,6 +46,10 @@ def to_dxf(q: Query) -> Optional["DxfQuery"]:
 
     if q.op == "area" and kind != "room":
         return None
+    if q.type_mark:
+        return None  # Swiss Dwellings symbols carry no type marks
+    if kind in ("door", "window"):
+        return DxfQuery(q.op, kind, count_basis=q.count_basis)
     return DxfQuery(
         q.op,
         kind,

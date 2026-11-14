@@ -9,10 +9,10 @@ interface Props {
   error: string | null
   loading: boolean
   onSelect: (d: Drawing) => void
-  onUploaded: (d: Drawing) => void
+  onUploaded: (drawings: Drawing[]) => void
 }
 
-const RENDER_LABEL: Record<Drawing['render'], string> = { image: 'IMG', pdf: 'PDF', dxf: 'DXF' }
+const RENDER_LABEL: Record<Drawing['render'], string> = { image: 'IMG', pdf: 'PDF', dxf: 'DXF', none: 'IFC' }
 const PAGE_SIZE = 80
 const naturalOrder = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' })
 
@@ -150,9 +150,17 @@ export function DrawingList({ drawings, total, selected, error, loading, onSelec
                     </span>
                     <span className="sheet-meta">
                       <span className="badge">{RENDER_LABEL[d.render]}</span>
-                      <span className="qcount" title={`${d.questions.length} example questions`} aria-label={`${d.questions.length} example questions`}>
-                        {d.questions.length} Q
-                      </span>
+                      {/* an uploaded vector twin (DXF/IFC) means the geometry engines can check the answer */}
+                      {d.render !== 'dxf' && d.render !== 'none' && d.files?.some((f) => f === 'dxf' || f === 'ifc') && (
+                        <span className="badge" title={`Uploaded files: ${d.files.join(', ')}`}>
+                          +{d.files.filter((f) => f === 'dxf' || f === 'ifc').join('+').toUpperCase()}
+                        </span>
+                      )}
+                      {d.collection !== 'uploads' && (
+                        <span className="qcount" title={`${d.questions.length} example questions`} aria-label={`${d.questions.length} example questions`}>
+                          {d.questions.length} Q
+                        </span>
+                      )}
                     </span>
                   </button>
                 </li>

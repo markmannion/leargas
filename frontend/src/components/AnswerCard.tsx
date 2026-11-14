@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Answer, DatasetQuestion } from '../types'
 import {
   SOURCE_LABEL,
@@ -8,6 +9,8 @@ import {
   matchesReference,
 } from '../format'
 import { sourceClass } from './SheetViewer'
+import { SlabBreakdown } from './SlabBreakdown'
+import { OpeningInventory } from './OpeningInventory'
 
 interface Props {
   answer: Answer
@@ -19,6 +22,8 @@ interface Props {
 }
 
 export function AnswerCard({ answer, reference, hovered, onHover, speech }: Props) {
+  const [focusedRoom, setFocusedRoom] = useState<{ answer: Answer; id: string } | null>(null)
+  const roomAreas = answer.room_areas ?? []
   const cv = answer.status === 'cannot_verify'
   const rejectedGuess = cv && answer.sources.some((s) => s.answer !== null)
   const modelScore = answer.source === 'gemma_ft' || answer.source === 'gemma_base'
@@ -61,7 +66,8 @@ export function AnswerCard({ answer, reference, hovered, onHover, speech }: Prop
           </>
         ) : (
           <>
-            <span className="value-big">{formatValue(answer.answer, answer.unit)}</span>
+            <span className="value-big">{typeof answer.answer === 'number' && (roomAreas.length > 0 || (answer.slab_areas?.length ?? 0) > 0 || answer.area_mode === 'intersection')
+              ? formatArea(answer.answer) : formatValue(answer.answer, answer.unit)}</span>
             {answer.type === 'count' && <span className="value-caption">items counted</span>}
           </>
         )}
@@ -73,6 +79,9 @@ export function AnswerCard({ answer, reference, hovered, onHover, speech }: Prop
 
       <dl className="facts">
         {answer.region && <div><dt>Scope</dt><dd>Selected region</dd></div>}
+        {answer.region && answer.type === 'area' && (
+          <div><dt>Area measurement</dt><dd>{answer.area_mode === 'intersection' ? 'Exact selected area' : 'Complete rooms'}</dd></div>
+        )}
         <div>
           <dt>Source</dt>
           <dd>
@@ -104,6 +113,50 @@ export function AnswerCard({ answer, reference, hovered, onHover, speech }: Prop
 
       {answer.explanation && <p className="explanation">{answer.explanation}</p>}
 
+      <SlabBreakdown answer={answer} onHover={onHover} />
+      <OpeningInventory answer={answer} hovered={hovered} onHover={onHover} />
+
+      {roomAreas.length > 0 && (
+        <div className="block room-breakdown">
+          <h3 className="block-title">{answer.area_mode === 'intersection' ? 'Selected floor areas' : 'Floor areas by room'}</h3>
+          <p className="scope-help">Choose a room to highlight it on the plan. Areas are in m².</p>
+          <table className="room-areas">
+            <thead><tr><th scope="col">Room</th><th scope="col">Area</th><th scope="col">Basis</th></tr></thead>
+            <tbody>
+              {roomAreas.map((room) => {
+                const active = room.evidence_indices.some((index) => index === hovered)
+                const pinned = focusedRoom?.answer === answer && focusedRoom.id === room.id
+                const index = room.evidence_indices[0] ?? null
+                return (
+                  <tr key={room.id} className={active ? 'active' : undefined}
+                    onPointerEnter={() => onHover(index)}
+                    onPointerLeave={() => {
+                      const selected = focusedRoom?.answer === answer ? roomAreas.find((item) => item.id === focusedRoom.id) : null
+                      onHover(selected?.evidence_indices[0] ?? null)
+                    }}>
+                    <th scope="row">
+                      <button type="button" disabled={index === null} aria-pressed={pinned}
+                        title={index === null ? 'Room area is available; no aligned sheet outline is available.' : 'Highlight this room on the plan'}
+                        onFocus={() => onHover(index)}
+                        onBlur={() => { if (!pinned) onHover(null) }}
+                        onClick={() => { setFocusedRoom(pinned ? null : { answer, id: room.id }); onHover(pinned ? null : index) }}>
+                        {room.room_id && <span className="mono">{room.room_id} </span>}{room.label}
+                      </button>
+                      {room.level && <small>{room.level}</small>}
+                      {!room.complete && <small className="selected-portion">Selected portion</small>}
+                    </th>
+                    <td className="mono num" title={`${room.value} m²`}>{formatArea(room.value)}</td>
+                    <td>{room.method === 'printed' ? 'Printed' : room.method === 'quantity' ? 'Model quantity' : 'CAD geometry'}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            <tfoot><tr><th scope="row">Total</th><td className="mono num">{typeof answer.answer === 'number' ? formatArea(answer.answer) : '—'}</td><td /></tr></tfoot>
+          </table>
+          <p className="scope-help">Total calculated before rounding individual rooms.</p>
+        </div>
+      )}
+
       {answer.sources.length > 0 && (
         <div className="block">
           <h3 className="block-title">{rejectedGuess ? 'Unverified guesses' : 'Engines'}</h3>
@@ -124,7 +177,7 @@ export function AnswerCard({ answer, reference, hovered, onHover, speech }: Prop
         </div>
       )}
 
-      {answer.evidence.length > 0 && (
+      {answer.evidence.length > 0 && roomAreas.length === 0 && !answer.openings?.length && (
         <div className="block">
           <h3 className="block-title">
             Evidence <span className="mono muted">{answer.evidence.length}</span>
@@ -152,4 +205,8 @@ export function AnswerCard({ answer, reference, hovered, onHover, speech }: Prop
 
 function formatMs(ms: number) {
   return ms < 1000 ? `${Math.max(1, Math.round(ms))} ms` : `${(ms / 1000).toFixed(1)} s`
+}
+
+function formatArea(value: number) {
+  return `${value.toFixed(2)} m²`
 }

@@ -338,3 +338,89 @@ def test_full_gemma_pool_does_not_queue_or_block_geometry(root, monkeypatch):
     a = ask()
     assert (a.answer, a.status) == (1, "verified")
     assert "Gemma is busy" in a.explanation
+
+
+def test_floor_area_breakdown_preserves_printed_quantities(root):
+    a = route(AskRequest(path=PLAN, question="Show floor areas by room", room_breakdown=True))
+    assert (a.answer, a.status, a.unit) == (15.55, "verified", "m2")
+    assert [(r.room_id, r.label, r.value, r.method) for r in a.room_areas] == [
+        ("1.01", "Zimmer", 12.34, "printed"), ("1.02", "Balkon", 3.21, "printed"),
+    ]
+    assert sum(r.value for r in a.room_areas) == pytest.approx(a.answer)
+    assert all(a.evidence[r.evidence_indices[0]].value == r.value for r in a.room_areas)
+
+
+def test_exact_selection_measures_geometry_not_printed_area_fraction(root, monkeypatch):
+    full = ask("What is the net floor area of room 1.01 ('Zimmer') in m²?")
+    points = full.evidence[0].shape.points
+    x0, x1 = min(p[0] for p in points), max(p[0] for p in points)
+    y0, y1 = min(p[1] for p in points), max(p[1] for p in points)
+    selection = Region(bbox=(x0, y0, (x0 + x1) / 2, y1))
+
+    def unexpected(*args, **kwargs):
+        pytest.fail("A model must not supply or confirm exact area measurements")
+
+    monkeypatch.setattr(router, "gemma_available", lambda: True)
+    monkeypatch.setattr(router, "run_gemma", unexpected)
+    a = route(AskRequest(path=PLAN, question=full.question, region=selection, area_mode="intersection"))
+    # The CAD room is 4 x 4 m, despite its different printed 12.34 m².
+    assert (a.answer, a.status, a.area_mode) == (8, "verified", "intersection")
+    assert len(a.room_areas) == 1
+    row = a.room_areas[0]
+    assert row.value == 8 and row.method == "geometry" and not row.complete
+    assert all(x0 - 1e-9 <= x <= (x0 + x1) / 2 + 1e-9 for x, y in a.evidence[0].shape.points)
+
+
+def test_floor_area_cut_room_refuses_even_when_model_is_available(root, monkeypatch):
+    monkeypatch.setattr(router, "gemma_available", lambda: True)
+    monkeypatch.setattr(router, "run_gemma", lambda *a, **kw: pytest.fail("No model fallback for a room takeoff"))
+    norm = router._dxf_normalizer(PLAN, root / "data/swiss_dwellings/floor.dxf")
+    left, bottom = norm(0, 0)
+    right, top = norm(2, 4)
+    a = route(AskRequest(path=PLAN, question="Show floor areas by room", room_breakdown=True,
+                         region=Region(bbox=(left, top, right, bottom))))
+    assert a.status == "cannot_verify" and not a.room_areas
+    assert "Exact selected area" in a.explanation
+
+
+def test_floor_area_breakdown_keeps_filters(root):
+    a = route(AskRequest(path=PLAN, question="What is the net floor area of apartment A in m², excluding balconies?",
+                         engine="geometry", room_breakdown=True))
+    assert a.answer == 12.34 and [r.room_id for r in a.room_areas] == ["1.01"]
+
+
+@pytest.mark.parametrize("mode", ["whole_rooms", "intersection"])
+def test_floor_area_selection_requires_alignment(root, monkeypatch, mode):
+    monkeypatch.setattr(router, "_dxf_normalizer", lambda *a: (_ for _ in ()).throw(router.CannotScope("Cannot align")))
+    a = route(AskRequest(path=PLAN, question="Show floor areas by room", room_breakdown=True,
+                         region=Region(bbox=(0, 0, .5, .5)), area_mode=mode))
+    assert a.answer is None and "Cannot align" in a.explanation
+
+
+def test_floor_area_breakdown_survives_missing_sheet_alignment(root, monkeypatch):
+    monkeypatch.setattr(router, "_dxf_normalizer", lambda *a: (_ for _ in ()).throw(router.CannotScope("Cannot align")))
+    a = route(AskRequest(path=PLAN, question="Show floor areas by room", room_breakdown=True))
+    assert a.answer == 15.55 and a.room_areas and not a.evidence
+    assert all(not row.evidence_indices for row in a.room_areas)
+
+
+def test_exact_area_without_cad_refuses_model_guess(root, monkeypatch):
+    monkeypatch.setattr(router, "run_gemma", lambda *a, **kw: pytest.fail("No model inference for exact areas"))
+    a = route(AskRequest(path="data/missing.png", question="What is the floor area?",
+                         region=Region(bbox=(0, 0, .5, .5)), area_mode="intersection"))
+    assert a.answer is None and "scaled DXF or IFC" in a.explanation
+
+
+def test_exact_area_rejects_count_question(root):
+    a = route(AskRequest(path=PLAN, question=WINDOWS_Q, area_mode="intersection",
+                         region=Region(bbox=(0, 0, 1, 1))))
+    assert a.answer is None and "floor-area question" in a.explanation
+
+
+def test_area_breakdown_is_in_live_api_contract(root):
+    response = TestClient(main.app).post("/ask", json={
+        "path": PLAN, "question": "Show floor areas by room", "room_breakdown": True,
+    })
+    assert response.status_code == 200
+    answer = Answer.model_validate(response.json())
+    assert answer.answer == 15.55 and len(answer.room_areas) == 2

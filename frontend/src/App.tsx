@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from './api'
-import type { Answer, Drawing, Engine, Health, Region } from './types'
+import type { Answer, AreaMode, Drawing, Engine, Health, Region } from './types'
 import { TopBar } from './components/TopBar'
 import { DrawingList } from './components/DrawingList'
 import { SheetViewer } from './components/SheetViewer'
@@ -13,6 +13,7 @@ const RENDER_NOTE: Record<Drawing['render'], string | null> = {
   image: null,
   pdf: 'PDF page 1',
   dxf: 'Rendered from DXF twin',
+  none: 'No sheet to show for an IFC model',
 }
 
 export default function App() {
@@ -30,6 +31,7 @@ export default function App() {
   const [hovered, setHovered] = useState<number | null>(null)
   const [region, setRegion] = useState<Region | null>(null)
   const [selectingRegion, setSelectingRegion] = useState(false)
+  const [areaMode, setAreaMode] = useState<AreaMode>('whole_rooms')
   const inflight = useRef<AbortController | null>(null)
   const [voice, setVoice] = useState(false)
   const { speak, stop: stopSpeech, speaking, error: speechError } = useSpeaker()
@@ -77,6 +79,7 @@ export default function App() {
     setBusy(false)
     setSelected(d)
     setRegion(null)
+    setAreaMode('whole_rooms')
     setSelectingRegion(false)
     setAnswer(null)
     setAskError(null)
@@ -84,9 +87,10 @@ export default function App() {
     history.replaceState(null, '', `#${encodeURIComponent(d.path)}`)
   }, [stopSpeech])
 
-  const uploaded = useCallback((drawing: Drawing) => {
-    setDrawings((current) => [drawing, ...current.filter((d) => d.path !== drawing.path)])
-    select(drawing)
+  const uploaded = useCallback((added: Drawing[]) => {
+    const prefixes = new Set(added.map((d) => d.path.replace(/\.[^.]+$/, '')))
+    setDrawings((current) => [...added, ...current.filter((d) => !prefixes.has(d.path.replace(/\.[^.]+$/, '')))])
+    if (added[0]) select(added[0])
   }, [select])
 
   const changeRegion = useCallback((next: Region | null) => {
@@ -101,8 +105,19 @@ export default function App() {
     setHovered(null)
   }, [stopSpeech])
 
+  const changeAreaMode = useCallback((next: AreaMode) => {
+    inflight.current?.abort()
+    inflight.current = null
+    stopSpeech()
+    setBusy(false)
+    setAreaMode(next)
+    setAnswer(null)
+    setAskError(null)
+    setHovered(null)
+  }, [stopSpeech])
+
   const ask = useCallback(
-    async (question: string, spoken = false) => {
+    async (question: string, spoken = false, floorAreas = false) => {
       if (!selected) return
       inflight.current?.abort()
       stopSpeech()
@@ -113,7 +128,13 @@ export default function App() {
       setHovered(null)
       try {
         const ref = selected.questions.find((q) => q.question === question)
-        const a = await api.ask({ path: selected.path, question, type: ref?.type ?? null, engine, region }, ctrl.signal)
+        const isArea = floorAreas || (ref ? ref.type === 'area'
+          : !/\b(how many|count|number of)\b/i.test(question) && /\b(area|areas|fläche|surface|pinta-ala)\b|m²|m2/i.test(question))
+        const a = await api.ask({
+          path: selected.path, question, type: floorAreas ? 'area' : ref?.type ?? null, engine, region,
+          area_mode: region && isArea ? areaMode : 'whole_rooms',
+          room_breakdown: floorAreas,
+        }, ctrl.signal)
         if (ctrl.signal.aborted) return
         setAnswer(a)
         // Questions asked by voice get a spoken answer.
@@ -127,11 +148,11 @@ export default function App() {
         if (inflight.current === ctrl) setBusy(false)
       }
     },
-    [selected, engine, region, stopSpeech, speak],
+    [selected, engine, region, areaMode, stopSpeech, speak],
   )
 
   const reference = useMemo(
-    () => (answer && selected && !answer.region ? selected.questions.find((q) => q.question === answer.question) ?? null : null),
+    () => (answer && selected && !answer.region && answer.area_mode !== 'intersection' ? selected.questions.find((q) => q.question === answer.question) ?? null : null),
     [answer, selected],
   )
 
@@ -143,8 +164,9 @@ export default function App() {
     <div className="app">
       <SheetViewer
         key={selected?.path ?? 'none'}
-        src={selected ? api.drawingUrl(selected.path) : null}
+        src={selected && selected.render !== 'none' ? api.drawingUrl(selected.path) : null}
         evidence={answer?.evidence ?? []}
+        highlighted={answer?.room_areas?.find((room) => hovered !== null && room.evidence_indices.includes(hovered))?.evidence_indices}
         page={0}
         hovered={hovered}
         onHover={setHovered}
@@ -180,6 +202,8 @@ export default function App() {
           region={region} selectingRegion={selectingRegion}
           onSelectRegion={() => setSelectingRegion((active) => !active)}
           onClearRegion={() => changeRegion(null)}
+          areaMode={areaMode} onAreaMode={changeAreaMode}
+          onMeasureAreas={() => void ask('Show floor areas by room', false, true)}
         >
           <div className="result">
             {!healthError && health?.mode === 'live' && gemmaState && gemmaState !== 'available' && (

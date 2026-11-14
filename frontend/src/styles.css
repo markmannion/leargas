@@ -1631,3 +1631,15 @@ button {
   color: var(--blue);
   background: color-mix(in srgb, var(--blue) 12%, transparent);
 }
+/* Slab takeoffs keep long exported reinforcement descriptions readable. */
+.slab-table-scroll { overflow-x: auto; }
+.slab-areas td, .slab-areas th { vertical-align: top; }
+.slab-areas td:nth-child(2) { overflow-wrap: anywhere; min-width: 120px; white-space: normal; }
+.slab-areas small { display: block; color: var(--label-3); }
+.slab-breakdown summary { cursor: pointer; font-size: 12px; margin-top: 12px; }
+.slab-records { padding-left: 18px; font-size: 12px; overflow-wrap: anywhere; }
+.slab-records > li { margin: 12px 0; }
+.slab-records p { margin: 5px 0; }
+.slab-records button { font: inherit; color: var(--blue); cursor: pointer; }
+.slab-records button:disabled { color: var(--label); cursor: default; }
+.slab-records ul { padding-left: 15px; }

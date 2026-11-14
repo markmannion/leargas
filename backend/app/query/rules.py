@@ -65,6 +65,44 @@ _HEAD_MEASURE = re.compile(
 )
 
 
+# Door/window counts with the filters a takeoff needs: "Count D01 doors on Level 1",
+# "how many doors of type 'T30' are there on level 'EG'?", "list the windows", "count door leaves".
+_OPENING = re.compile(
+    r"(?:(?:count|list|show|tally)(?:\s+me)?|how many|(?:the\s+)?number of|(?:an?\s+)?inventory of|schedule of)"
+    r"(?:\s+(?:all|the|every))*"
+    r"(?:\s+(?:type\s+)?(?P<m1><[NS]>))?"
+    r"\s+(?P<what>door leaves|doors?|windows?)"
+    r"(?:\s+(?:of\s+)?type\s+(?P<m2><[NS]>)|\s+(?:marked|tagged)\s+(?P<m3><[NS]>))?"
+    r"(?:\s+(?:are|is)(?:\s+there)?)?(?:\s+(?:drawn|shown|installed|placed))?"
+    r"(?:\s+(?:on|in)\s+(?:(?P<kw>level|storey|floor)\s+(?P<lv><[NS]>)|(?P<lv2><S>)|"
+    r"(?:this|the)\s+(?:floor plan|plan|floor|drawing|sheet|model|building)))?"
+    r"(?:\s+(?:are\s+there|are|is|exist))?\s*\??"
+)
+
+
+def _parse_opening(t: str, args: List[Arg]) -> Optional[Query]:
+    m = _OPENING.fullmatch(t)
+    if not m:
+        return None
+
+    def arg(group: str) -> Optional[str]:
+        if m.group(group) is None:
+            return None
+        idx = len(re.findall(r"<[SNL]>", t[: m.start(group)]))
+        return args[idx][1] if idx < len(args) else None
+
+    what = m.group("what")
+    mark = arg("m1") or arg("m2") or arg("m3")
+    level = arg("lv2")
+    if m.group("lv"):
+        level = arg("lv")
+        if m.group("lv").startswith("<N") and level is not None:
+            level = f"{m.group('kw').title()} {level}"  # "level <N>" is the storey "Level 1"
+    basis = "leaves" if what == "door leaves" else "symbols" if re.search(r"\bdrawn\b", t) else "assemblies"
+    return Query(op="count", target="door" if what.startswith("door") else "window", unit="count",
+                 type_mark=mark, count_basis=basis, level=level, scope="level" if level else "plan")
+
+
 def _strip_parens(t: str) -> str:
     """Remove explanatory parentheticals, but keep ones holding placeholders, e.g. '(<S>)'."""
     return re.sub(r"\s*\((?![^)]*<[SNL]>)[^)]*\)", "", t)
@@ -84,6 +122,32 @@ def parse_template(template: str, args: List[Arg]) -> Optional[Query]:
     t = re.sub(r"<([snl])>", lambda m: f"<{m.group(1).upper()}>", template.lower())
     t = _strip_parens(t)
     t = re.sub(r"\s+", " ", t).strip()
+
+    slab_group = re.fullmatch(
+        r"(?:(?:show|calculate|measure|what is)\s+)?(?:the\s+)?(?:total\s+)?"
+        r"(?:slab(?:s| zones?)? areas?|area of (?:all )?(?:the )?slabs?)\s+"
+        r"(?:grouped\s+)?by\s+(?:thickness and reinforcement|reinforcement and thickness)"
+        r"(?:\s+(?:on|in)\s+(?:level|storey|floor|model)\s+(<S>))?\s*\??", t,
+    )
+    if slab_group:
+        level = _arg_after(t, r"(?:level|storey|floor)\s+(<S>)", args)
+        model = _arg_after(t, r"model\s+(<S>)", args)
+        return Query(op="area", target="slab", group_by="thickness_reinforcement", unit="m2",
+                     scope="level" if level else "model" if model else "plan", level=level, model=model)
+
+    # Explicit floor-area entry points, without weakening unsupported qualifiers
+    # (gross, finish type, etc.) on the general question parser.
+    if not args and re.fullmatch(
+        r"(?:(?:what is|show|measure|calculate)\s+)?(?:the\s+)?(?:total\s+)?"
+        r"(?:net\s+)?floor areas?(?:\s+by room)?"
+        r"(?:\s+(?:in|on)\s+(?:this|the)\s+(?:floor plan|plan|floor))?"
+        r"(?:\s+in\s+(?:m²|m2|square metres|square meters))?\s*\??", t,
+    ):
+        return Query(op="area", target="room", unit="m2")
+
+    opening = _parse_opening(t, args)
+    if opening is not None:
+        return opening
 
     # --- op + head noun phrase ---
     if _COUNT.search(t):
@@ -140,6 +204,8 @@ def parse_template(template: str, args: List[Arg]) -> Optional[Query]:
     q["exclude_outdoor"] = bool(re.search(r"(except|excluding|without|not counting|ohne|hors)[^?]*(balcon|loggia|terrace|outdoor)", full))
     q["numbered_only"] = "numbered" in full
     q["side_area"] = bool(re.search(r"side area", full))
+    if op == "count" and target in ("door", "window") and re.search(r"\bdrawn\b", full):
+        q["count_basis"] = "symbols"  # every symbol on the sheet, the dataset's convention
 
     if op == "count":
         q["unit"] = "count"

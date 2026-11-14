@@ -60,6 +60,14 @@ class Item:
     # None means unlabelled / insufficient semantic information.
     indoor: bool | None = None
     interior_outline_ids: list[str] = field(default_factory=list)
+    # Doors/windows. A symbol drawn twice on top of itself is one physical opening: the copy keeps
+    # `duplicate_of`. Leaves of one double door share `assembly_id` (the first leaf's id).
+    duplicate_of: str | None = None
+    assembly_id: str | None = None
+    leaves: int | None = None
+    width_m: float | None = None
+    anchor: tuple[float, float] | None = None  # where the opening sits in the wall
+    location: list[str] = field(default_factory=list)  # adjoining room labels, nearest first
 
     @cached_property
     def polygon(self) -> Polygon:
@@ -75,6 +83,9 @@ class Query:
     unit_id: str | None = None
     indoor_only: bool = False
     area_source: Literal["auto", "printed", "geometry"] = "auto"
+    # Doors/windows: "symbols" = every outline drawn (the dataset's convention), "assemblies" =
+    # physical openings (duplicates dropped, double-door leaves joined), "leaves" = door leaves.
+    count_basis: Literal["symbols", "assemblies", "leaves"] = "symbols"
 
 
 @dataclass
@@ -154,6 +165,8 @@ class Drawing:
             if any(i.indoor is None for i in selected):
                 raise CannotVerify("Indoor/outdoor classification is incomplete.")
             selected = [i for i in selected if i.indoor]
+        if query.operation == "count" and query.kind in ("door", "window") and query.count_basis != "symbols":
+            return _count_openings(selected, query)
         if query.operation == "count":
             return Result(len(selected), "count", [i.id for i in selected],
                           f"Counted {len(selected)} {query.kind} objects from semantic DXF layers.")
@@ -300,18 +313,111 @@ def parse_dxf(path: str | Path) -> Drawing:
             room.unit_id = overlaps[0][1].unit_id
     _enclosed_rooms_indoor(rooms)
     for layer, kind in [("WINDOW", "window"), ("DOOR", "door")]:
+        symbols, strokes, arcs = [], [], []
         for entity in by_layer[layer]:
             poly = _polygon(entity, explicit_close=True)
             if poly is not None:
-                drawing.items.append(_item(entity, kind, poly))
+                symbols.append(_item(entity, kind, poly))
             elif entity.dxftype() == "LWPOLYLINE" and len(_points(entity)) == 2:
-                pass  # glazing lines and door leaves
+                strokes.append(_points(entity))  # glazing lines and closed-position door leaves
             elif layer == "DOOR" and entity.dxftype() == "ARC":
-                pass  # swing arcs are not extra doors
+                arcs.append(entity)  # swing arcs are not extra doors
             else:
                 raise CannotVerify(f"Unsupported {layer} symbol: {entity.dxf.handle}.")
+        _openings(symbols, strokes, arcs, rooms)
+        drawing.items.extend(symbols)
     _fixtures(by_layer["FIXTURE"], drawing)
     return drawing
+
+
+DUPLICATE = 0.02  # symmetric difference below this share of the area: the same outline drawn twice
+LATCH = 0.06  # m between the latch ends of two leaves that close onto each other (double door)
+NEAR_ROOM = 0.45  # m from an opening to a room it serves (about a wall's thickness plus slack)
+
+
+def _openings(symbols: list[Item], strokes: list, arcs: list, rooms: list[Item]) -> None:
+    """Group door/window symbols into physical openings: dedupe, join double leaves, locate.
+
+    Swiss door leaf = open-position rectangle + closed-position line + swing arc centred on the
+    hinge. The arc radius is the leaf width; the closed line runs hinge -> latch inside the wall.
+    """
+    kept: list[Item] = []
+    for s in symbols:
+        twin = next((k for k in kept if s.polygon.symmetric_difference(k.polygon).area
+                     < DUPLICATE * max(s.polygon.area, 1e-9)), None)
+        if twin is not None:
+            s.duplicate_of = twin.id
+        else:
+            kept.append(s)
+    for s in symbols:
+        s.anchor = tuple(s.polygon.centroid.coords[0])
+    if symbols and symbols[0].kind == "door":
+        latch: dict[str, tuple] = {}
+        for s in kept:
+            corners = s.points[:-1]
+            arc = min(arcs, default=None, key=lambda a: min(
+                math.dist((a.dxf.center.x, a.dxf.center.y), c) for c in corners))
+            if arc is None:
+                continue
+            hinge = (arc.dxf.center.x, arc.dxf.center.y)
+            if min(math.dist(hinge, c) for c in corners) > 0.02:
+                continue  # no swing arc on this leaf (e.g. sliding door)
+            s.width_m = round(float(arc.dxf.radius), 3)
+            line = min(strokes, default=None, key=lambda l: min(math.dist(hinge, p) for p in l))
+            if line is not None and min(math.dist(hinge, p) for p in line) < 0.02:
+                end = max(line, key=lambda p: math.dist(hinge, p))
+                latch[s.id] = (hinge, end)
+                s.anchor = ((hinge[0] + end[0]) / 2, (hinge[1] + end[1]) / 2)
+        for s in kept:
+            s.assembly_id, s.leaves = s.id, 1
+        for i, a in enumerate(kept):
+            if a.id not in latch or a.assembly_id != a.id or a.leaves != 1:
+                continue
+            for b in kept[i + 1:]:
+                if b.id not in latch or b.assembly_id != b.id:
+                    continue
+                (ha, la), (hb, lb) = latch[a.id], latch[b.id]
+                va, vb = (la[0] - ha[0], la[1] - ha[1]), (lb[0] - hb[0], lb[1] - hb[1])
+                cos = (va[0] * vb[0] + va[1] * vb[1]) / (math.hypot(*va) * math.hypot(*vb) or 1)
+                if math.dist(la, lb) < LATCH and cos < -0.95:
+                    b.assembly_id, a.leaves, b.leaves = a.id, 2, 0
+                    a.anchor = ((ha[0] + hb[0]) / 2, (ha[1] + hb[1]) / 2)
+                    a.width_m = round((a.width_m or 0) + (b.width_m or 0), 3) or None
+                    break
+    else:
+        for s in kept:
+            s.assembly_id = s.id
+    named = [r for r in rooms if r.label or r.room_id]
+    for s in symbols:
+        p = Point(s.anchor)
+        near = sorted(((r.polygon.distance(p), r) for r in named if r.polygon.distance(p) < NEAR_ROOM),
+                      key=lambda pair: pair[0])
+        seen = []
+        for _, r in near:
+            name = " ".join(x for x in (r.room_id, r.label) if x)
+            if name not in seen:
+                seen.append(name)
+        s.location = seen[:2]
+    for s in symbols:
+        if s.duplicate_of:
+            twin = next(k for k in kept if k.id == s.duplicate_of)
+            s.assembly_id, s.leaves = twin.assembly_id, 0
+
+
+def _count_openings(selected: list[Item], query: Query) -> Result:
+    assemblies = [i for i in selected if i.assembly_id == i.id]
+    dupes = sum(1 for i in selected if i.duplicate_of)
+    note = f" {dupes} duplicate symbol(s) drawn on top of another were not counted again." if dupes else ""
+    if query.count_basis == "leaves":
+        if query.kind != "door" or any(i.leaves is None for i in assemblies):
+            raise CannotVerify("Leaf counts need a swing arc on every door leaf.")
+        n = sum(i.leaves for i in assemblies)
+        return Result(n, "count", [i.id for i in assemblies],
+                      f"Counted {n} door leaves in {len(assemblies)} door assemblies.{note}")
+    doubles = sum(1 for i in assemblies if (i.leaves or 0) > 1)
+    extra = f" {doubles} double door(s) counted once each." if doubles else ""
+    return Result(len(assemblies), "count", [i.id for i in assemblies],
+                  f"Counted {len(assemblies)} physical {query.kind}s from semantic DXF layers.{extra}{note}")
 
 
 def _holds_numbered_room(fragment: Item, rooms: list[Item]) -> bool:

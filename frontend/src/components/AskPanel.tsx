@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import type { DatasetQuestion, Drawing, Region } from '../types'
+import type { AreaMode, DatasetQuestion, Drawing, Region } from '../types'
 import { TYPE_LABEL, guessLang } from '../format'
 import { useVoiceInput } from '../voice'
 
@@ -12,10 +12,23 @@ interface Props {
   selectingRegion: boolean
   onSelectRegion: () => void
   onClearRegion: () => void
+  areaMode: AreaMode
+  onAreaMode: (mode: AreaMode) => void
+  onMeasureAreas: () => void
   children?: ReactNode
 }
 
-export function AskPanel({ drawing, busy, onAsk, voice, region, selectingRegion, onSelectRegion, onClearRegion, children }: Props) {
+// Starters for an uploaded drawing, which has no dataset questions. They match parser templates /
+// English rules, so geometry engines can take them when the upload has a DXF or IFC twin.
+const STARTERS = [
+  'How many doors are drawn on this floor plan?',
+  'How many windows are drawn on this floor plan?',
+  'How many rooms are there?',
+  'How many bathrooms are there?',
+  'What is the total floor area in m²?',
+]
+
+export function AskPanel({ drawing, busy, onAsk, voice, region, selectingRegion, onSelectRegion, onClearRegion, areaMode, onAreaMode, onMeasureAreas, children }: Props) {
   const [text, setText] = useState('')
   const [lang, setLang] = useState<string>('all')
 
@@ -54,9 +67,42 @@ export function AskPanel({ drawing, busy, onAsk, voice, region, selectingRegion,
           {selectingRegion
             ? 'Drag a box on the drawing. Escape cancels.'
             : region
-              ? 'Only this region is checked. Counts use item centers; include complete rooms for areas.'
+              ? 'Only this region is checked. Counts include objects whose centers are inside the box.'
               : 'Ask about the entire drawing, or draw a box to focus on one area.'}
         </p>
+      </div>
+      <div className="floor-area-tools">
+        <span className="field-label">Floor areas</span>
+        {region && (
+          <fieldset className="area-mode">
+            <legend className="sr-only">How to measure floor area in the selection</legend>
+            <label><input type="radio" name="area-mode" value="whole_rooms" checked={areaMode === 'whole_rooms'}
+              onChange={() => onAreaMode('whole_rooms')} /> Complete rooms</label>
+            <label><input type="radio" name="area-mode" value="intersection" checked={areaMode === 'intersection'}
+              onChange={() => onAreaMode('intersection')} /> Exact selected area</label>
+          </fieldset>
+        )}
+        <p className="scope-help">
+          {!region
+            ? 'See the total and a breakdown by room, with each room marked on the plan.'
+            : areaMode === 'whole_rooms'
+              ? 'Sum complete rooms using printed areas or CAD geometry. If the box cuts a room, redraw it or choose Exact selected area.'
+              : 'Measure room floor polygons inside the box, including cut rooms and excluding voids. Requires aligned CAD geometry with known units.'}
+        </p>
+        <button type="button" className="measure-areas" disabled={!drawing || busy || selectingRegion}
+          onClick={() => { setText('Show floor areas by room'); onMeasureAreas() }}>
+          {region && areaMode === 'intersection' ? 'Measure selected floor area' : 'Show floor areas by room'}
+        </button>
+      </div>
+      <div className="floor-area-tools">
+        <span className="field-label">Slab specifications</span>
+        <p className="scope-help">Group measured slab areas by thickness and reinforcement. Missing specifications keep their area.
+          {' '}IFC totals cover the model; ask for a named level to narrow them.
+          {region && ' Use the whole plan for slab specifications.'}</p>
+        <button type="button" className="measure-areas" disabled={!drawing || busy || selectingRegion || !!region}
+          onClick={() => submit('Show slab area grouped by thickness and reinforcement')}>
+          Show slab area by specification
+        </button>
       </div>
       <form
         className="ask-form"
@@ -114,6 +160,23 @@ export function AskPanel({ drawing, busy, onAsk, voice, region, selectingRegion,
       </form>
 
       {children}
+
+      {drawing && drawing.questions.length === 0 && (
+        <div className="block">
+          <div className="block-title-row">
+            <h3 className="block-title">Try asking</h3>
+          </div>
+          <ul className="question-list">
+            {STARTERS.map((q) => (
+              <li key={q}>
+                <button type="button" onClick={() => submit(q)} disabled={busy}>
+                  <span className="q-text">{q}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {questions.length > 0 && (
         <div className="block">

@@ -20,13 +20,16 @@ from typing import Dict, Tuple
 
 from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from . import demo_cache
 from . import router as qa_router
+from .query.parser import templates
 from .drawings import questions_path, router as drawings_router
 from .router import _guess_type
-from .voice import router as voice_router
 from .uploads import router as uploads_router
+from .upload_groups import router as upload_groups_router
+from .voice import router as voice_router
 
 from .schema import (
     Answer,
@@ -46,9 +49,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# The full /drawings catalogue (every question included) is ~16 MB of JSON, ~10x smaller gzipped.
+app.add_middleware(GZipMiddleware, minimum_size=4096)
 app.include_router(drawings_router)
 app.include_router(voice_router)
 app.include_router(uploads_router)
+app.include_router(upload_groups_router)
 
 
 @lru_cache(maxsize=1)
@@ -79,7 +85,10 @@ def health() -> dict:
     mode = "mock" if _mock() else "live"
     gemma = qa_router.gemma_health() if mode == "live" else {"status": "disabled", "available": False, "models": {}}
     out = {"ok": True, "mode": mode, "gemma": gemma["available"], "gemma_status": gemma,
-           "gold_questions_loaded": len(_gold())}
+           "gold_questions_loaded": len(_gold()),
+           # 0 means build_templates hasn't run here: parsing falls back to rules/LLM and no Gemma
+           # answer can be `verified` (router.gemma_calibrated).
+           "query_templates": len(templates())}
     if demo_cache.enabled():
         out["demo_cache"] = {"path": str(demo_cache.cache_path()),
                              "entries": len(demo_cache.entries(demo_cache.cache_path()))}
@@ -98,7 +107,8 @@ def schema() -> dict:
 
 @app.post("/ask", response_model=Answer)
 def ask(req: AskRequest, response: Response) -> Answer:
-    if demo_cache.enabled() and req.region is None:
+    slab_takeoff = qa_router.slab_takeoff_requested(req)
+    if demo_cache.enabled() and req.region is None and not req.room_breakdown and not slab_takeoff:
         hit = demo_cache.lookup(req.path, req.question, req.engine)
         if hit is not None:
             response.headers["X-Leargas-Cache"] = "hit"
@@ -111,12 +121,12 @@ def ask(req: AskRequest, response: Response) -> Answer:
 
 def _mock_ask(req: AskRequest) -> Answer:
     t0 = time.perf_counter()
-    if req.region is not None:
+    if req.region is not None or req.room_breakdown or qa_router.slab_takeoff_requested(req):
         return Answer(
-            path=req.path, question=req.question, region=req.region,
+            path=req.path, question=req.question, region=req.region, area_mode=req.area_mode,
             answer=None, unit=None, type=req.type or _guess_type(req.question),
             status=Status.cannot_verify, confidence=0.0, source=Source.mock,
-            explanation="Region questions require a live engine; whole-sheet dataset answers cannot verify a region.",
+            explanation="Region questions and room/slab breakdowns require a live engine; whole-sheet dataset answers cannot verify them.",
             latency_ms=(time.perf_counter() - t0) * 1000,
         )
     g = _gold().get((req.path, req.question))

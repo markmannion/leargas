@@ -1,4 +1,4 @@
-import type { Answer, AskRequest, Drawing, Health } from './types'
+import type { Answer, AskRequest, Drawing, Health, UploadResult } from './types'
 
 // In dev, Vite proxies /api to the FastAPI app (see vite.config.ts).
 export const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? '/api'
@@ -16,6 +16,25 @@ async function json<T>(res: Response): Promise<T> {
     throw new Error(`${res.status} ${res.statusText}${body ? ` — ${body.slice(0, 200)}` : ''}`)
   }
   return res.json() as Promise<T>
+}
+
+function uploadFile<T>(path: string, file: File, onProgress?: (percent: number) => void): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest()
+    request.open('POST', `${API_BASE}${path}`)
+    request.setRequestHeader('Content-Type', 'application/octet-stream')
+    request.timeout = 120000
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress?.(Math.round(event.loaded / event.total * 100))
+    }
+    request.onload = () => {
+      json<T>(new Response(request.responseText, { status: request.status, statusText: request.statusText }))
+        .then(resolve, reject)
+    }
+    request.onerror = () => reject(new Error('Could not reach the server. Check your connection and try again.'))
+    request.ontimeout = () => reject(new Error('Upload timed out. Try a smaller file or check the plan library before retrying.'))
+    request.send(file)
+  })
 }
 
 export const api = {
@@ -42,23 +61,12 @@ export const api = {
       signal,
     }).then((r) => json<Answer>(r)),
 
-  upload: (file: File, onProgress: (percent: number) => void): Promise<Drawing> =>
-    new Promise((resolve, reject) => {
-      const request = new XMLHttpRequest()
-      request.open('POST', `${API_BASE}/drawings/upload?filename=${encodeURIComponent(file.name)}`)
-      request.setRequestHeader('Content-Type', 'application/octet-stream')
-      request.timeout = 120000
-      request.upload.onprogress = (event) => {
-        if (event.lengthComputable) onProgress(Math.round(event.loaded / event.total * 100))
-      }
-      request.onload = () => {
-        json<Drawing>(new Response(request.responseText, { status: request.status, statusText: request.statusText }))
-          .then(resolve, reject)
-      }
-      request.onerror = () => reject(new Error('Could not reach the server. Check your connection and try again.'))
-      request.ontimeout = () => reject(new Error('Upload timed out. Try a smaller file or check the plan library before retrying.'))
-      request.send(file)
-    }),
+  upload: (file: File, onProgress: (percent: number) => void) =>
+    uploadFile<Drawing>(`/drawings/upload?filename=${encodeURIComponent(file.name)}`, file, onProgress),
+
+  // Raw body, not multipart. Pass the group from the first file to pair twins (plan.pdf + plan.dxf).
+  uploadGroup: (file: File, group?: string, onProgress?: (percent: number) => void) =>
+    uploadFile<UploadResult>(`/upload?name=${encodeURIComponent(file.name)}${group ? `&group=${group}` : ''}`, file, onProgress),
 
   drawingUrl: (path: string, page = 0) =>
     `${API_BASE}/drawing?path=${encodeURIComponent(path)}&page=${page}`,
