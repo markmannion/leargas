@@ -39,7 +39,7 @@ export function AnswerCard({ answer, reference, hovered, onHover }: Props) {
           </>
         ) : (
           <>
-            <span className="value-big mono">{formatValue(answer.answer, answer.unit)}</span>
+            <span className="value-big">{formatValue(answer.answer, answer.unit)}</span>
             {answer.type === 'count' && <span className="value-caption">items counted</span>}
           </>
         )}

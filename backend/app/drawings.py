@@ -100,7 +100,7 @@ def _render_dxf(p: Path) -> Path:
             color_policy=config.ColorPolicy.BLACK,
         )
         Frontend(RenderContext(doc), backend, config=cfg).draw_layout(doc.modelspace())
-        page = layout.Page(0, 0, layout.Units.mm, margins=layout.Margins.all(0))
+        page = layout.Page(0, 0, layout.Units.mm, margins=layout.Margins.all(1.5))  # drawing units are metres, so 1.5 m of paper
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(backend.get_string(page), encoding="utf-8")
     return out

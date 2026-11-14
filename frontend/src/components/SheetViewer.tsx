@@ -30,22 +30,45 @@ export function sourceClass(s?: Source | null): string {
 
 export function SheetViewer({ src, evidence, page, hovered, onHover, renderNote }: Props) {
   const frame = useRef<HTMLDivElement>(null)
-  const [aspect, setAspect] = useState<number | null>(null) // height / width
+  // Load state is keyed by src, so a cached image that loads before effects run can't be clobbered.
+  const [loaded, setLoaded] = useState<{ src: string; aspect: number } | null>(null)
+  const [failed, setFailed] = useState<string | null>(null)
+  const aspect = loaded && loaded.src === src ? loaded.aspect : null // height / width
+  const state: 'idle' | 'loading' | 'ready' | 'error' = !src
+    ? 'idle'
+    : aspect
+      ? 'ready'
+      : failed === src
+        ? 'error'
+        : 'loading'
   const [view, setView] = useState<View>({ x: 0, y: 0, k: 1 })
   const [cursor, setCursor] = useState<[number, number] | null>(null)
   const [showEvidence, setShowEvidence] = useState(true)
-  const [state, setState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
   const drag = useRef<{ x: number; y: number; vx: number; vy: number } | null>(null)
   const [dragging, setDragging] = useState(false)
 
   const H = aspect ? BASE_W * aspect : 0
 
-  // Panels float over the canvas; the visible area is the frame minus the insets set in CSS.
+  // Panels float over the canvas; the visible area is the frame minus whatever floating panel
+  // covers each edge. Stacked (mobile) panels are not absolutely positioned and don't count.
   const insets = useCallback(() => {
     const el = frame.current
-    const cs = el ? getComputedStyle(el) : null
-    const v = (n: string) => (cs ? parseFloat(cs.getPropertyValue(n)) || 0 : 0)
-    return { t: v('--inset-top'), r: v('--inset-right'), b: v('--inset-bottom'), l: v('--inset-left') }
+    const ins = { t: 0, r: 0, b: 0, l: 0 }
+    if (!el) return ins
+    const fr = el.getBoundingClientRect()
+    const floating = (sel: string) => {
+      const n = document.querySelector(sel)
+      return n && getComputedStyle(n).position === 'absolute' ? n.getBoundingClientRect() : null
+    }
+    const top = floating('.topbar')
+    const left = floating('.register')
+    const right = floating('.inspector')
+    const hud = el.querySelector('.hud-tools')?.getBoundingClientRect()
+    if (top) ins.t = top.bottom - fr.top
+    if (left) ins.l = left.right - fr.left
+    if (right) ins.r = fr.right - right.left
+    if (hud) ins.b = fr.bottom - hud.top
+    return ins
   }, [])
 
   const fit = useCallback(() => {
@@ -62,11 +85,6 @@ export function SheetViewer({ src, evidence, page, hovered, onHover, renderNote 
       y: ins.t + (el.clientHeight - ins.t - ins.b - BASE_W * aspect * k) / 2,
     })
   }, [aspect, insets])
-
-  useEffect(() => {
-    setAspect(null)
-    setState(src ? 'loading' : 'idle')
-  }, [src])
 
   useLayoutEffect(() => {
     fit()
@@ -168,10 +186,9 @@ export function SheetViewer({ src, evidence, page, hovered, onHover, renderNote 
             decoding="async"
             onLoad={(e) => {
               const img = e.currentTarget
-              setAspect(img.naturalWidth ? img.naturalHeight / img.naturalWidth : 1)
-              setState('ready')
+              setLoaded({ src: src!, aspect: img.naturalWidth ? img.naturalHeight / img.naturalWidth : 1 })
             }}
-            onError={() => setState('error')}
+            onError={() => setFailed(src)}
           />
           {aspect && showEvidence && (
             <svg className="overlay" viewBox={`0 0 ${BASE_W} ${H}`} width={BASE_W} height={H}>
