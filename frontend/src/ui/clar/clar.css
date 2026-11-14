@@ -34,7 +34,7 @@
   --listen-rgb: 0 163 232;
   /* Fill behind white text while recording: 4.9:1 (the bright cyan stays for the glow). */
   --listen-strong: #0077b6;
-  --strip: 404px;
+  --strip: 440px;
   /* Barlow: a DIN 1451-style grotesque, the lettering of engineering title blocks and signage.
      Its drawn semi-condensed and condensed cuts replace synthetic font-stretch. */
   --font: 'Barlow', Arial, sans-serif;
@@ -248,7 +248,7 @@ button:disabled { cursor: default; }
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 14px 9px;
+  padding: 14px 18px 12px;
   border-bottom: 1.5px solid var(--ink);
 }
 .cs-mark {
@@ -262,6 +262,10 @@ button:disabled { cursor: default; }
 /* Model status: one light per model, in its cross-check colour. */
 .ms { display: grid; grid-template-columns: auto auto auto; column-gap: 6px; row-gap: 1px; margin: 0; padding: 0; list-style: none; font-size: 11px; line-height: 1.3; cursor: default; }
 .ms-row { display: contents; }
+.ms-ok { display: flex; align-items: center; gap: 4px; margin: 0; font-size: 12.5px; color: var(--ink-2); cursor: default; }
+.ms-ok .ms-light:last-of-type { margin-right: 4px; }
+.ms-light.is-measure { background: var(--measure); border-color: var(--measure); }
+.ms-light.is-model { background: var(--model); border-color: var(--model); }
 .ms-light { align-self: center; width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--ink-3); }
 .ms-name { font-weight: 650; font-family: var(--font-semi); letter-spacing: 0.05em; text-transform: uppercase; }
 .ms-word { color: var(--ink-2); }
@@ -277,7 +281,7 @@ button:disabled { cursor: default; }
 @keyframes ms-blink { 50% { background: var(--ink-3); } }
 @media (prefers-reduced-motion: reduce) { .ms-row.is-checking .ms-light { animation: none; background: var(--hair); } }
 
-.cs-cell { padding: 9px 14px 11px; border-bottom: 1px solid var(--ink); }
+.cs-cell { padding: 14px 18px 16px; border-bottom: 1px solid var(--ink); }
 
 .cs-drawing { display: grid; grid-template-columns: 1fr auto; column-gap: 12px; align-items: baseline; }
 .cs-drawing .cs-label { grid-column: 1 / -1; }
@@ -356,8 +360,7 @@ button:disabled { cursor: default; }
 .cs-go { min-width: 70px; background: var(--ink); color: var(--paper); }
 .cs-go:hover:not(:disabled) { background: #000; }
 
-.cs-scope { display: flex; align-items: center; gap: 0; margin-bottom: 8px; }
-.cs-scope .cs-label { margin-right: 10px; }
+.cs-scope { display: flex; align-items: center; gap: 0; margin-top: 12px; }
 .cs-scope button {
   padding: 4px 9px;
   border: 1px solid var(--ink);
@@ -372,18 +375,6 @@ button:disabled { cursor: default; }
 .cs-scope button:disabled { opacity: 0.38; }
 
 .cs-ask form { display: block; }
-.cs-q-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
-.cs-q-key { font-size: 11px; color: var(--ink-3); }
-.cs-q-key kbd {
-  display: inline-block;
-  min-width: 15px;
-  padding: 0 3px;
-  border: 1px solid var(--hair);
-  border-bottom-width: 2px;
-  font: 600 10px/14px var(--font);
-  text-align: center;
-  color: var(--ink-2);
-}
 
 /* The question box: a framed field you can see you type into, with Speak and Ask inside it. */
 .cs-q {
@@ -457,8 +448,16 @@ button:disabled { cursor: default; }
 .cs-warn { color: var(--red); }
 .cs-ask > .cs-hint { margin-top: 8px; }
 
-.cs-takeoff { display: flex; align-items: center; gap: 6px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--hair); }
-.cs-takeoff .cs-label { margin-right: 4px; }
+.cs-takeoff { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+
+/* Rarely used ways to ask (cloud a region, takeoffs), folded under the question box. */
+.cs-more { margin-top: 12px; }
+.cs-more summary { display: inline-flex; gap: 6px; cursor: pointer; list-style: none; font-size: 13px; color: var(--ink-2); }
+.cs-more summary::-webkit-details-marker { display: none; }
+.cs-more summary::after { content: '+'; font-weight: 600; }
+.cs-more[open] summary::after { content: '−'; }
+.cs-more summary:hover { color: var(--red); }
+.cs-more-k { flex: none; width: 72px; font-size: 12.5px; color: var(--ink-2); }
 .cs-mode { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin: 8px 0 0; padding: 0; border: 0; font-size: 12px; }
 .cs-mode legend { float: left; margin-right: 10px; padding: 0; }
 .cs-mode label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
@@ -466,8 +465,8 @@ button:disabled { cursor: default; }
 
 .cs-scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
 
-.cs-error { margin: 0; padding: 10px 14px; border-bottom: 1px solid var(--ink); color: var(--red); font-size: 12.5px; }
-.cs-pending { padding: 12px 14px 14px; border-bottom: 1px solid var(--ink); }
+.cs-error { margin: 0; padding: 12px 18px; border-bottom: 1px solid var(--ink); color: var(--red); font-size: 12.5px; }
+.cs-pending { padding: 14px 18px 16px; border-bottom: 1px solid var(--ink); }
 .cs-pending p { margin: 4px 0 0; font-size: 13px; color: var(--ink-2); }
 .cs-pending::after {
   content: '';
@@ -482,7 +481,7 @@ button:disabled { cursor: default; }
 
 /* ---------- answer ---------- */
 
-.ca { padding: 10px 14px 16px; border-bottom: 1px solid var(--ink); }
+.ca { padding: 14px 18px 18px; border-bottom: 1px solid var(--ink); }
 .ca-meta { display: flex; align-items: baseline; gap: 10px; }
 .ca-meta .cs-label { flex: 1; }
 .ca-ms { font-size: 11px; color: var(--ink-3); }
@@ -665,7 +664,7 @@ button:disabled { cursor: default; }
 
 /* ---------- questions and register ---------- */
 
-.cq { padding: 9px 14px 10px; border-bottom: 1px solid var(--ink); }
+.cq { padding: 14px 18px 14px; border-bottom: 1px solid var(--ink); }
 .cq summary { display: flex; align-items: baseline; gap: 8px; cursor: pointer; list-style: none; }
 .cq summary::-webkit-details-marker { display: none; }
 .cq summary::after { content: '+'; margin-left: auto; font-weight: 600; }
@@ -675,11 +674,11 @@ button:disabled { cursor: default; }
 .cq-langs button { padding: 2px 7px; border: 1px solid var(--ink); background: var(--paper); font-size: 11px; font-weight: 600; font-family: var(--font-semi); }
 .cq-langs button + button { border-left: 0; }
 .cq-langs button[aria-pressed='true'] { background: var(--ink); color: var(--paper); }
-.cq ol { margin: 6px 0 0; padding: 0; list-style: none; }
+.cq ol { margin: 8px 0 0; padding: 0; list-style: none; }
 .cq li button {
   display: block;
   width: 100%;
-  padding: 6px 2px 7px;
+  padding: 9px 2px 10px;
   border: 0;
   border-bottom: 1px solid var(--hair);
   background: none;
@@ -690,9 +689,10 @@ button:disabled { cursor: default; }
 .cq li:last-child button { border-bottom: 0; }
 .cq li button:hover:not(:disabled) { background: var(--wash); }
 .cq li button:disabled { opacity: 0.45; }
-.cq li small { display: block; margin-top: 1px; font-size: 11px; font-weight: 600; font-family: var(--font-semi); letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-3); }
+.cq li small { display: block; margin-top: 2px; font-size: 11.5px; color: var(--ink-3); }
+.cq-all { margin-top: 8px; }
 
-.cg { padding: 10px 14px 16px; }
+.cg { padding: 14px 18px 18px; }
 .cg-table { margin-top: 4px; }
 .cg-table td button { padding: 0; border: 0; background: none; text-align: left; font-size: 12px; line-height: 1.35; }
 .cg-table th { font-weight: 640; font-family: var(--font-semi); white-space: nowrap; }

@@ -161,7 +161,7 @@ export default function ClarApp() {
 /** Upload your own drawing: the main way in for a new sheet, so it sits under the drawing title. */
 function UploadControl({ up }: { up: ReturnType<typeof useUpload> }) {
   const file = useRef<HTMLInputElement>(null)
-  const note = up.error ?? (up.message || 'PDF, PNG, JPG, DXF or IFC. You can also drop files on the sheet.')
+  const note = up.error ?? (up.message || 'PDF, PNG, JPG, DXF or IFC')
   return (
     <div className="cs-upload">
       <input ref={file} type="file" hidden multiple accept={UPLOAD_ACCEPT}
@@ -224,6 +224,15 @@ function ModelStatus({ s }: { s: Session }) {
       used: s.engine === 'gemma_base', about: 'Base Gemma, before fine-tuning.' },
   ]
   const title = s.health ? `${s.health.gold_questions_loaded.toLocaleString()} reference questions loaded` : undefined
+  if (rows.every((r) => r.light === 'ready' || !r.used)) {
+    const detail = rows.map((r) => `${r.name}: ${LIGHT_WORD[r.light]}${r.used ? '' : ' (not used by this setting)'}`).join('\n')
+    return (
+      <p className="ms-ok" role="status" title={title ? `${detail}\n${title}` : detail}>
+        {rows.filter((r) => r.used).map((r) => <i key={r.id} className={`ms-light is-${r.lane}`} aria-hidden="true" />)}
+        All checks ready
+      </p>
+    )
+  }
   return (
     <ul className="ms" role="status" aria-label="Model status" title={title}>
       {rows.map((r) => (
@@ -241,13 +250,14 @@ function ModelStatus({ s }: { s: Session }) {
 function DrawingTitle({ d }: { d: Drawing }) {
   const [main, sub] = drawingName(d.name)
   const twins = vectorTwins(d)
+  const meta = [sub, d.collection === 'uploads' ? '' : collectionName(d.collection)].filter(Boolean).join(' · ')
+  const checked = twins.length > 0 && d.render !== 'dxf' && d.render !== 'none'
   return (
     <>
       <p className="cs-title" title={d.path}>{main}</p>
-      <p className="cs-sub">
-        {[sub, collectionName(d.collection), FORMAT_LABEL[d.render]].filter(Boolean).join(' · ')}
-        {twins.length > 0 && d.render !== 'dxf' && d.render !== 'none' && <> · checked against {twins.join(' + ')}</>}
-      </p>
+      {(meta || checked) && <p className="cs-sub">
+        {meta}{checked && <>{meta ? ' · ' : ''}checked against {twins.join(' + ')}</>}
+      </p>}
     </>
   )
 }
@@ -275,30 +285,19 @@ function AskCell({ s }: { s: Session }) {
     return () => window.removeEventListener('keydown', key)
   }, [])
 
+  const [more, setMore] = useState(false)
+  const clouding = Boolean(s.region) || s.selectingRegion
+
   return (
     <section className="cs-cell cs-ask">
-      <div className="cs-scope" role="group" aria-label="What to ask about">
-        <span className="cs-label">Scope</span>
-        <button type="button" aria-pressed={!s.region && !s.selectingRegion} disabled={!d}
-          onClick={() => { if (s.selectingRegion) s.setSelectingRegion(false); if (s.region) s.changeRegion(null) }}>Whole sheet</button>
-        <button type="button" aria-pressed={Boolean(s.region) || s.selectingRegion} disabled={!d || d.render === 'none'}
-          onClick={() => s.setSelectingRegion(!s.selectingRegion)}>
-          {s.selectingRegion ? 'Cancel cloud' : s.region ? 'Redraw cloud' : 'Cloud a region'}
-        </button>
-      </div>
-
       <form onSubmit={(e) => { e.preventDefault(); submit(text) }}>
-        <div className="cs-q-head">
-          <label htmlFor="cl-q" className="cs-label">Ask a question</label>
-          {d && <span className="cs-q-key"><kbd>/</kbd> to type</span>}
-        </div>
         <div className={`cs-q${listening ? ' is-listening' : ''}${listening && mic.level >= HEARING ? ' is-hearing' : ''}${!d ? ' is-off' : ''}`}
           style={listening ? ({ '--lvl': mic.level } as React.CSSProperties) : undefined} onClick={() => box.current?.focus()}>
-          <textarea id="cl-q" ref={box} rows={2} value={text} disabled={!d}
+          <textarea id="cl-q" ref={box} rows={2} aria-label="Ask a question (press / to jump here)" value={text} disabled={!d}
             placeholder={!d ? 'Open a drawing first'
               : listening ? 'Listening… speak your question'
                 : mic.state === 'transcribing' ? 'Writing it down…'
-                  : s.region ? 'Type a question, e.g. How many doors are inside the cloud?' : 'Type a question, e.g. How many windows are on this floor?'}
+                  : s.region ? 'Ask in any language, e.g. How many doors are inside the cloud?' : 'Ask in any language, e.g. How many windows are on this floor?'}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(text) } }} />
           <div className="cs-q-bar">
@@ -313,30 +312,42 @@ function AskCell({ s }: { s: Session }) {
             <span className="cs-q-hint">
               {mic.error ? <span className="cs-warn">{mic.error}</span>
                 : listening ? <VoiceMeter level={mic.level} />
-                  : 'Any language · Enter to ask'}
+                  : null}
             </span>
             <button type="submit" className="cs-btn cs-go" disabled={blocked || !text.trim()}>{s.busy ? 'Asking…' : 'Ask'}</button>
           </div>
         </div>
       </form>
 
-      <div className="cs-takeoff">
-        <span className="cs-label">Takeoff</span>
-        <button type="button" className="cs-btn" disabled={blocked}
-          onClick={() => { setText('Show floor areas by room'); void s.ask('Show floor areas by room', { floorAreas: true }) }}>
-          {s.region && s.areaMode === 'intersection' ? 'Floor area in cloud' : 'Room areas'}
-        </button>
-        <button type="button" className="cs-btn" disabled={blocked || Boolean(s.region)}
-          title={s.region ? 'Slab areas use the whole sheet' : 'Slab area grouped by thickness and bars'}
-          onClick={() => submit('Slab area by type (thickness and bars)')}>Slab areas</button>
-      </div>
-      {s.region && (
-        <fieldset className="cs-mode">
-          <legend className="cs-label">Area in the cloud</legend>
-          <label><input type="radio" name="cl-mode" checked={s.areaMode === 'whole_rooms'} onChange={() => s.changeAreaMode('whole_rooms')} /> Whole rooms</label>
-          <label><input type="radio" name="cl-mode" checked={s.areaMode === 'intersection'} onChange={() => s.changeAreaMode('intersection')} /> Exact cut</label>
-        </fieldset>
-      )}
+      <details className="cs-more" open={more || clouding} onToggle={(e) => setMore(e.currentTarget.open)}>
+        <summary>More ways to ask</summary>
+        <div className="cs-scope" role="group" aria-label="What to ask about">
+          <span className="cs-more-k">Ask about</span>
+          <button type="button" aria-pressed={!s.region && !s.selectingRegion} disabled={!d}
+            onClick={() => { if (s.selectingRegion) s.setSelectingRegion(false); if (s.region) s.changeRegion(null) }}>Whole sheet</button>
+          <button type="button" aria-pressed={Boolean(s.region) || s.selectingRegion} disabled={!d || d.render === 'none'}
+            onClick={() => s.setSelectingRegion(!s.selectingRegion)}>
+            {s.selectingRegion ? 'Cancel cloud' : s.region ? 'Redraw cloud' : 'Cloud a region'}
+          </button>
+        </div>
+        <div className="cs-takeoff">
+          <span className="cs-more-k">Takeoff</span>
+          <button type="button" className="cs-btn" disabled={blocked}
+            onClick={() => { setText('Show floor areas by room'); void s.ask('Show floor areas by room', { floorAreas: true }) }}>
+            {s.region && s.areaMode === 'intersection' ? 'Floor area in cloud' : 'Room areas'}
+          </button>
+          <button type="button" className="cs-btn" disabled={blocked || Boolean(s.region)}
+            title={s.region ? 'Slab areas use the whole sheet' : 'Slab area grouped by thickness and bars'}
+            onClick={() => submit('Slab area by type (thickness and bars)')}>Slab areas</button>
+        </div>
+        {s.region && (
+          <fieldset className="cs-mode">
+            <legend className="cs-label">Area in the cloud</legend>
+            <label><input type="radio" name="cl-mode" checked={s.areaMode === 'whole_rooms'} onChange={() => s.changeAreaMode('whole_rooms')} /> Whole rooms</label>
+            <label><input type="radio" name="cl-mode" checked={s.areaMode === 'intersection'} onChange={() => s.changeAreaMode('intersection')} /> Exact cut</label>
+          </fieldset>
+        )}
+      </details>
     </section>
   )
 }
@@ -421,14 +432,16 @@ function Suggestions({ s }: { s: Session }) {
   const all = useMemo(() => suggestionsFor(s.selected), [s.selected])
   const [lang, setLang] = useState('all')
   const langs = useMemo(() => [...new Set(all.map((q) => q.lang))].sort(), [all])
-  const shown = lang === 'all' || !langs.includes(lang) ? all : all.filter((q) => q.lang === lang)
+  const [everything, setEverything] = useState(false)
+  const filtered = lang === 'all' || !langs.includes(lang) ? all : all.filter((q) => q.lang === lang)
+  const shown = everything ? filtered : filtered.slice(0, 3)
   if (!all.length) return null
   const fromDataset = all[0].fromDataset
   return (
     <details className="cq" open={!s.answer}>
       <summary>
         <span className="cs-label">{fromDataset ? 'Questions on file' : 'Questions to try'}</span>
-        <span className="cq-n">{shown.length}</span>
+        <span className="cq-n">{filtered.length}</span>
       </summary>
       {langs.length > 1 && (
         <div className="cq-langs" role="group" aria-label="Language">
@@ -444,11 +457,16 @@ function Suggestions({ s }: { s: Session }) {
               onClick={() => void s.ask(q.question)}
               title={q.weak ? 'The model rarely counts doors and windows right from the image alone, so it will usually hold the answer back.' : undefined}>
               <span>{q.question}</span>
-              <small>{q.lang} · {TYPE_LABEL[q.type]}{q.weak ? ' · model unreliable' : ''}</small>
+              {q.weak && <small>The model is often wrong on these</small>}
             </button>
           </li>
         ))}
       </ol>
+      {filtered.length > 3 && (
+        <button type="button" className="cs-link cq-all" onClick={() => setEverything((v) => !v)}>
+          {everything ? 'Show fewer' : `Show all ${filtered.length}`}
+        </button>
+      )}
     </details>
   )
 }
