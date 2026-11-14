@@ -167,15 +167,17 @@ def _rows(sheet: Sheet) -> List[Text]:
 
 def tool_printed(sheet: Sheet, question: str, kind: dict) -> Optional[SheetResult]:
     """A value printed on the sheet: the row whose words best match the question."""
-    q = set(content(question)) - GENERIC
+    q = {_SAME.get(w, w) for w in content(_ABBREV.sub(lambda m: _ABBREVS[m.group(0).upper()], question))} - GENERIC
     if not q:
         return None
-    best = None
+    cands = []
     for r in _rows(sheet):
         num = last_number(r.text)
         if not num:
             continue
-        rt = set(content(r.text))
+        # Numbers in the row are the value (or another value), not words to match: "48 DORMS" must not
+        # lose points for its "48", and a bare "2" must not match the "2" in "level 2".
+        rt = {_SAME.get(w, w) for w in content(r.text) if not w.isdigit()}
         hit = q & rt
         if not hit:
             continue
@@ -183,11 +185,27 @@ def tool_printed(sheet: Sheet, question: str, kind: dict) -> Optional[SheetResul
             continue
         if kind["count"] and num[1] in ("ft2", "m2"):
             continue
-        score = len(hit) / len(q) - 0.02 * len(rt - q)  # prefer rows with nothing extra
-        if best is None or score > best[0]:
-            best = (score, r, num)
-    if best is None or best[0] < 0.5:
+        cands.append((len(hit) / len(q) - 0.02 * len(rt - q), r, num))  # prefer rows with nothing extra
+    if not cands:
         return None
+    top = max(c[0] for c in cands)
+    if top < 0.5:
+        return None
+    tied = [c for c in cands if c[0] >= top - 1e-9]
+    near = [c for c in cands if c[0] >= top - 0.1]
+    best, cap, note = tied[0], PRINTED_CONF, ""
+    values = [c[2][0] for c in near]
+    if len({c[2][0] for c in tied}) > 1:
+        # Several rows match about equally well but print different values, e.g. "FIRST FLOOR = 48 DORMS",
+        # "SECOND FLOOR = 48 DORMS", "THIRD FLOOR = 48 DORMS", "TOTAL = 144 DORMS". A question that names
+        # no floor or part gets the TOTAL row; otherwise say the sheet is ambiguous rather than guess.
+        shown = ", ".join(f"{v:g}" for v in values)
+        totals = [c for c in near if "total" in tokens(c[1].text)]
+        if totals and not _PART.search(question):
+            best = max(totals, key=lambda c: (c[0], c[2][0]))  # the best-matching, then the grand total
+            cap, note = 0.85, f" The sheet prints {shown} for this; the TOTAL row is used."
+        else:
+            cap, note = 0.6, f" The sheet prints different values for this ({shown}); check which one you mean."
     score, r, (v, unit, raw) = best
     qtype = "area" if unit in ("ft2", "m2") else ("count" if kind["count"] else "other")
     if qtype == "count":
@@ -199,11 +217,22 @@ def tool_printed(sheet: Sheet, question: str, kind: dict) -> Optional[SheetResul
         v = (m.group(1).strip() if m else raw).replace("''", '"')
         unit = None
         qtype = "text"
-    conf = PRINTED_CONF if (score >= 0.66 and r.conf >= 0.9) else 0.75
+    conf = min(cap, PRINTED_CONF if (score >= 0.66 and r.conf >= 0.9) else 0.75)
     r = _trim_left(r, q)
     return SheetResult(value=v, unit=unit, qtype=qtype, confidence=conf, tool="printed",
                        evidence=_evidence(sheet, [r]),
-                       explanation=f'Printed on the sheet: "{r.text}".')
+                       explanation=f'Printed on the sheet: "{r.text}".{note}')
+
+
+# Words the sheets and the questions use for the same thing.
+_SAME = {"corridor": "circulation", "hallway": "circulation", "dormitory": "dorm"}
+# Abbreviations judges use for words printed in full on the sheet.
+_ABBREVS = {"MCC": "motor control center"}
+_ABBREV = re.compile(r"(?:" + "|".join(_ABBREVS) + r")", re.I)
+
+# A question about one part of the building: a floor, level, wing or block.
+_PART = re.compile(r"\b(first|second|third|fourth|fifth|ground|basement|\d+(st|nd|rd|th)|level\s*\d+|floor\s*\d+|"
+                   r"storey|story|wing|block|north|south|east|west)\b", re.I)
 
 
 def _trim_left(r: Text, q: set) -> Text:
