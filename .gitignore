@@ -159,3 +159,17 @@ explainer_docs/
 # Dataset (hosted on Hugging Face: leargas/junction-dataset)
 datasets/
 junction-dataset-preview/
+
+# Python
+__pycache__/
+*.pyc
+
+# Dataset-derived files (Junction-only licence; the repo is public)
+data/
+
+# Internal docs and planning notes (not committed)
+docs/
+blueprint-trace-build-plan.md
+mark-tasks.md
+who-does-what.md
+infra/verda.local.md
