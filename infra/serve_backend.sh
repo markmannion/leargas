@@ -49,7 +49,9 @@ MODEL_BASE_URL=${MODEL_BASE_URL:-http://127.0.0.1:8000/v1}
 MODEL_API_KEY=${MODEL_API_KEY:-}
 ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY:-}
 LEARGAS_GEMMA_SPECIALIST=${LEARGAS_GEMMA_SPECIALIST-gemma-ft-cc}
-LEARGAS_DATASET_INCLUDE="${LEARGAS_DATASET_INCLUDE:-questions.jsonl README.md data/swiss_dwellings/* data/ifc_models/* data/ifc_bench/* data/cubicasa5k/*}"
+# Whole dataset by default (~12 GB): every collection shows up in the drawing catalogue. Set
+# LEARGAS_DATASET_INCLUDE to space-separated patterns to fetch only part of it.
+LEARGAS_DATASET_INCLUDE="${LEARGAS_DATASET_INCLUDE:-}"
 EOF
 umask 022
 cat > /etc/systemd/system/leargas-api.service <<EOF
