@@ -260,9 +260,9 @@ button:disabled { cursor: default; }
 .ms-word { color: var(--ink-2); }
 .is-measure .ms-name { color: var(--measure); }
 .is-model .ms-name { color: var(--model); }
-.is-measure.is-ready .ms-light { background: var(--measure); border-color: var(--measure); box-shadow: 0 0 0 2.5px var(--measure-tint); }
-.is-model.is-ready .ms-light { background: var(--model); border-color: var(--model); box-shadow: 0 0 0 2.5px var(--model-tint); }
-.ms-row.is-down .ms-light { border-color: var(--red); background: linear-gradient(135deg, transparent 43%, var(--red) 43% 57%, transparent 57%); }
+.is-measure.is-ready .ms-light { background: var(--measure); border-color: var(--measure); }
+.is-model.is-ready .ms-light { background: var(--model); border-color: var(--model); }
+.ms-row.is-down .ms-light { border-color: var(--red); background: var(--red); }
 .ms-row.is-down .ms-word { color: var(--red); }
 .ms-row.is-checking .ms-light { animation: ms-blink 1s steps(2, jump-none) infinite; }
 .ms-row.is-mock .ms-light { border-style: dashed; }
