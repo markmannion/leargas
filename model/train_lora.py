@@ -30,6 +30,11 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
+# Unsloth 2026.11 torch.compiles each Gemma4 decoder layer as one region; with gradient checkpointing the
+# recompute picks a different graph than the forward and backward dies with CheckpointError ("Recomputed
+# values ... different metadata": [B*T, D] saved vs [B, T, H, d] recomputed). Must be set before unsloth imports.
+os.environ.setdefault("UNSLOTH_BLOCK_COMPILE", "0")
+
 from model.common import abs_path, load_jsonl  # noqa: E402
 from model.prompt import MAX_SIDE, MAX_SOFT_TOKENS, build_train_messages, parse_output  # noqa: E402
 
@@ -48,20 +53,18 @@ def set_image_budget(processor, soft_tokens: int) -> str:
     return ", ".join(done) or "!! no budget attribute found; check --check-processor output and set it by hand"
 
 
-class SFTData:
-    """Lazy dataset: loads and resizes each image when the collator asks for it (20k images won't fit in RAM)."""
+def make_dataset(rows: list[dict], with_points_prompt: bool):
+    """Lazy HF Dataset: only row indices are stored, and the transform loads + resizes each image when
+    the dataloader asks for it (20k images won't fit in RAM). TRL 1.x rejects plain torch-style datasets
+    ("train_dataset must be a Dataset or IterableDataset"), hence the HF wrapper."""
+    from datasets import Dataset
 
-    def __init__(self, rows: list[dict], with_points_prompt: bool):
-        self.rows = rows
-        self.with_points = with_points_prompt
+    def to_messages(batch):
+        return {"messages": [build_train_messages(abs_path(rows[i]["image"]), rows[i]["question"], rows[i]["target"],
+                                                  with_points=with_points_prompt, max_side=MAX_SIDE)
+                             for i in batch["idx"]]}
 
-    def __len__(self):
-        return len(self.rows)
-
-    def __getitem__(self, i):
-        r = self.rows[i]
-        return {"messages": build_train_messages(abs_path(r["image"]), r["question"], r["target"],
-                                                 with_points=self.with_points, max_side=MAX_SIDE)}
+    return Dataset.from_dict({"idx": list(range(len(rows)))}).with_transform(to_messages)
 
 
 def turn_markers(processor) -> tuple[str, str]:
@@ -123,12 +126,15 @@ def train(a) -> None:
     FastVisionModel.for_training(model)
 
     ins, resp = turn_markers(processor)
+    # resize="max": no collator resizing. The default ("min") falls back to 512 px for Gemma 4, which would
+    # train on different images than vLLM serves; build_train_messages already caps the long side at
+    # MAX_SIDE and the processor applies the max_soft_tokens budget, same as serving.
     try:
-        collator = UnslothVisionDataCollator(model, processor, train_on_responses_only=True,
+        collator = UnslothVisionDataCollator(model, processor, resize="max", train_on_responses_only=True,
                                              instruction_part=ins, response_part=resp)
         print(f"masking prompt tokens (instruction={ins!r}, response={resp!r})")
     except TypeError:
-        collator = UnslothVisionDataCollator(model, processor)
+        collator = UnslothVisionDataCollator(model, processor, resize="max")
         print("!! this Unsloth collator can't mask prompts; training on full sequences")
 
     out_dir = Path.home() / "runs" / a.run
@@ -137,7 +143,8 @@ def train(a) -> None:
         output_dir=str(out_dir),
         per_device_train_batch_size=a.batch, gradient_accumulation_steps=a.grad_accum,
         num_train_epochs=a.epochs, max_steps=a.max_steps if a.max_steps else -1,
-        learning_rate=a.lr, lr_scheduler_type="cosine", warmup_ratio=0.03, weight_decay=0.001,
+        # transformers 5 dropped warmup_ratio; a float < 1 in warmup_steps is read as a ratio.
+        learning_rate=a.lr, lr_scheduler_type="cosine", warmup_steps=0.03, weight_decay=0.001,
         max_grad_norm=0.3, optim="adamw_8bit", seed=3407, bf16=True,
         logging_steps=10, save_steps=a.save_steps, save_total_limit=3,
         report_to="none", dataloader_num_workers=4,
@@ -146,7 +153,7 @@ def train(a) -> None:
         push_to_hub=push, hub_model_id=a.hub_repo if push else None,
         hub_strategy="every_save", hub_private_repo=True,
     )
-    trainer = SFTTrainer(model=model, train_dataset=SFTData(rows, with_points),
+    trainer = SFTTrainer(model=model, train_dataset=make_dataset(rows, with_points),
                          processing_class=processor.tokenizer, data_collator=collator, args=cfg)
     t0 = time.time()
     trainer.train(resume_from_checkpoint=a.resume or None)
