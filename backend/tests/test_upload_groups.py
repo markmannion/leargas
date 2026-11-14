@@ -118,3 +118,44 @@ def test_gemma_threshold_is_calibrated_per_slice(monkeypatch):
     low = Outcome(Source.gemma_ft, value=4, unit="count", confidence=0.31, explanation="model")
     r = reconcile(cc, None, [low])
     assert r["status"] == "cannot_verify" and r["answer"] is None and r["confidence"] == 0.31
+
+
+def test_gemma_specialist_routing(monkeypatch, tmp_path):
+    router._import_model_pkg()  # puts the repo root on sys.path for `model`
+    from app import gemma_status
+    from app.schema import QuestionType
+    from model import gemma_engine
+
+    asked = []
+
+    class FakeClient:
+        @staticmethod
+        def ask(image, question, model, with_points, timeout):
+            asked.append(model)
+            return {"ok": True, "answer": 3, "unit": "count", "confidence": 0.9}
+
+    img = tmp_path / "x.png"
+    img.write_bytes(b"")
+    served = {"gemma-ft", "gemma-base", "gemma-ft-cc"}
+    monkeypatch.setattr(router, "_import_model_pkg", lambda: FakeClient)
+    monkeypatch.setenv("MODEL_BASE_URL", "http://x/v1")
+    monkeypatch.setattr(gemma_status, "status", lambda m: {"status": "ok", "available": m in served})
+
+    # off by default: everything goes to gemma-ft
+    monkeypatch.setattr(router, "GEMMA_SPECIALIST", "")
+    assert router.run_gemma(Source.gemma_ft, img, "How many windows are shown on this floor plan?").model == "gemma-ft"
+    monkeypatch.setattr(router, "GEMMA_SPECIALIST", "gemma-ft-cc")
+    assert router.run_gemma(Source.gemma_ft, img, "How many windows are shown on this floor plan?").model == "gemma-ft-cc"
+    assert router.run_gemma(Source.gemma_ft, img, "How many saunas are on this floor plan?").model == "gemma-ft"
+    assert router.run_gemma(Source.gemma_base, img, "How many doors are shown?").model == "gemma-base"
+    served.discard("gemma-ft-cc")  # specialist down -> falls back to gemma-ft
+    assert router.run_gemma(Source.gemma_ft, img, "How many doors are shown?").model == "gemma-ft"
+    assert asked == ["gemma-ft", "gemma-ft-cc", "gemma-ft", "gemma-base", "gemma-ft"]
+
+    # the specialist's answers use its own calibration
+    monkeypatch.setattr(router, "GEMMA_VERIFIED_OVERRIDE", None)
+    cal = {"gemma-ft": {"cubicasa5k/count": 0.75}, "gemma-ft-cc": {"cubicasa5k/count": 0.6}}
+    monkeypatch.setattr(gemma_engine, "_calibration", lambda label: cal.get(label, {}))
+    cc = AskRequest(path="data/cubicasa5k/x.png", question="q")
+    assert router.gemma_threshold(cc, Source.gemma_ft, QuestionType.count, "gemma-ft-cc") == 0.6
+    assert router.gemma_threshold(cc, Source.gemma_ft, QuestionType.count, "gemma-ft") == 0.75

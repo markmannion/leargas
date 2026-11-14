@@ -25,6 +25,7 @@ IFC answers carry no image evidence yet.
 from __future__ import annotations
 
 import os
+import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
@@ -68,6 +69,14 @@ GEMMA_VERIFIED = float(GEMMA_VERIFIED_OVERRIDE or 0.99)
 # Which calibration file each served model uses. Run 2 is also served as gemma-ft: point this at
 # its own calibration (LEARGAS_GEMMA_FT_LABEL=gemma-ft-run2) when it's swapped in.
 GEMMA_LABELS = {Source.gemma_ft: os.environ.get("LEARGAS_GEMMA_FT_LABEL", "gemma-ft"), Source.gemma_base: "gemma-base"}
+# Optional specialist: a fine-tune served under its own name (e.g. gemma-ft-cc, Mark's CubiCasa
+# windows/doors/sinks/showers model) that takes the gemma_ft questions matching
+# LEARGAS_GEMMA_SPECIALIST_RE. Off unless LEARGAS_GEMMA_SPECIALIST is set. If the specialist is not
+# served, those questions go to gemma-ft. Its `verified` bar comes from calibration_<name>.json.
+GEMMA_SPECIALIST = os.environ.get("LEARGAS_GEMMA_SPECIALIST", "")
+GEMMA_SPECIALIST_RE = re.compile(os.environ.get(
+    "LEARGAS_GEMMA_SPECIALIST_RE",
+    r"\bwindows?\b|ikkun|\bdoors?\b|\bovea?\b|\bsinks?\b|wash ?basins?|pesu- ja tiskial|\bshowers?\b|bathtubs?|suihku"), re.I)
 GEMMA_PARTIAL = float(os.environ.get("LEARGAS_GEMMA_PARTIAL", 0.5))
 GEMMA_TIMEOUT = float(os.environ.get("LEARGAS_GEMMA_TIMEOUT", 15))
 GEMMA_COMPARE_WAIT = float(os.environ.get("LEARGAS_GEMMA_COMPARE_WAIT", 1))
@@ -103,6 +112,7 @@ class Outcome:
     slab_areas: List[SlabArea] = field(default_factory=list)
     slab_groups: List[SlabGroup] = field(default_factory=list)
     openings: List[OpeningItem] = field(default_factory=list)
+    model: Optional[str] = None  # served model name, when a Gemma answered (gemma-ft, gemma-base, a specialist)
 
     @property
     def ok(self) -> bool:
@@ -386,6 +396,10 @@ def run_gemma(source: Source, image: Optional[Path], question: str,
         out.reason = "Model endpoint not configured (MODEL_BASE_URL)."
         return out
     name = "gemma-ft" if source == Source.gemma_ft else "gemma-base"
+    if (source == Source.gemma_ft and GEMMA_SPECIALIST and GEMMA_SPECIALIST_RE.search(question)
+            and gemma_status.status(GEMMA_SPECIALIST)["available"]):
+        name = GEMMA_SPECIALIST
+    out.model = name
     state = gemma_status.status(name)
     if not state["available"]:
         out.reason = gemma_status.reason(state)
@@ -545,7 +559,7 @@ def gemma_calibrated(req: AskRequest) -> bool:
     return parse(req.question, use_llm=False).parser == "template"
 
 
-def gemma_threshold(req: AskRequest, source: Source, qtype: QuestionType) -> float:
+def gemma_threshold(req: AskRequest, source: Source, qtype: QuestionType, model: Optional[str] = None) -> float:
     """Calibrated `verified` threshold for this model on this kind of drawing and question."""
     if GEMMA_VERIFIED_OVERRIDE:
         return GEMMA_VERIFIED
@@ -558,7 +572,8 @@ def gemma_threshold(req: AskRequest, source: Source, qtype: QuestionType) -> flo
     t = qtype.value
     if common.source_of(req.path) == "swiss_dwellings" and t == "area":
         t = "area_printed" if common.prints_areas(req.path) else "area_unprinted"
-    th = gemma_engine._calibration(GEMMA_LABELS.get(source, "gemma-ft"))
+    label = model if model and model == GEMMA_SPECIALIST else GEMMA_LABELS.get(source, "gemma-ft")
+    th = gemma_engine._calibration(label)
     if not th:
         return GEMMA_VERIFIED
     v = th.get(f"{common.source_of(req.path)}/{t}", th.get("ALL"))
@@ -594,7 +609,7 @@ def reconcile(req: AskRequest, q: Optional[Query], outcomes: List[Outcome], cali
         return answer(geo, Status.verified, geo.confidence, f"{geo.explanation}{note}")
     if gem and gem.ok:
         note = f" Geometry could not check it: {geo.reason}" if geo and geo.reason else ""
-        bar = gemma_threshold(req, gem.source, qtype)
+        bar = gemma_threshold(req, gem.source, qtype, gem.model)
         if gem.confidence >= bar and calibrated:
             return answer(gem, Status.verified, gem.confidence, f"{gem.explanation}{note}")
         if gem.confidence >= bar:
