@@ -14,6 +14,7 @@ def client(tmp_path, monkeypatch):
     q.write_text(json.dumps({"path": "data/cubicasa5k/x.png", "question": "How many windows?",
                              "answer": 7, "unit": "count", "type": "count"}) + "\n")
     monkeypatch.setenv("LEARGAS_QUESTIONS", str(q))
+    monkeypatch.setenv("LEARGAS_MOCK", "1")
     main._gold.cache_clear()
     yield TestClient(main.app)
     main._gold.cache_clear()

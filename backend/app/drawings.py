@@ -87,9 +87,14 @@ def _render_pdf(p: Path, page: int) -> Path:
     return out
 
 
+DXF_MARGIN = 1.5  # drawing units are metres, rendered 1 unit = 1 mm, so 1.5 m of paper
+
+
 def _render_dxf(p: Path) -> Path:
+    """Render a DXF to SVG, and record the framed region beside it (`<stem>.frame.json`)."""
     out = CACHE / f"{p.stem}.svg"
-    if not out.exists():
+    frame = out.with_suffix(".frame.json")
+    if not out.exists() or not frame.exists():
         import ezdxf
         from ezdxf.addons.drawing import Frontend, RenderContext, config, layout, svg
 
@@ -100,10 +105,26 @@ def _render_dxf(p: Path) -> Path:
             color_policy=config.ColorPolicy.BLACK,
         )
         Frontend(RenderContext(doc), backend, config=cfg).draw_layout(doc.modelspace())
-        page = layout.Page(0, 0, layout.Units.mm, margins=layout.Margins.all(1.5))  # drawing units are metres, so 1.5 m of paper
+        bb = backend.player().bbox()
+        page = layout.Page(0, 0, layout.Units.mm, margins=layout.Margins.all(DXF_MARGIN))
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(backend.get_string(page), encoding="utf-8")
+        frame.write_text(json.dumps({"extmin": list(bb.extmin), "extmax": list(bb.extmax), "margin": DXF_MARGIN}))
     return out
+
+
+def dxf_frame(dxf: Path) -> Dict[str, list]:
+    """The DXF-coordinate region shown by the rendered sheet: content bbox plus margin."""
+    _render_dxf(dxf)
+    return json.loads((CACHE / f"{dxf.stem}.frame.json").read_text())
+
+
+def render_kind(rel: str) -> Optional[str]:
+    """"image" | "pdf" | "dxf" | None: what `GET /drawing` will serve for this path."""
+    try:
+        return _renderable(rel)
+    except HTTPException:
+        return None
 
 
 @router.get("/drawing")

@@ -1,8 +1,8 @@
-"""FastAPI scaffold. `/ask` is a mock until the router lands (Sat 18:30).
+"""FastAPI app. `/ask` goes through the router (app/router.py): geometry engines + Gemma, reconciled.
 
-Mock behaviour: if LEARGAS_QUESTIONS points at questions.jsonl and the (path, question) pair is in it,
-return the gold answer with placeholder evidence (status=verified, source=mock). Otherwise return
-cannot_verify. Either way the response is a valid `Answer`, so the frontend can build against it.
+Mock mode (LEARGAS_MOCK=1): if the (path, question) pair is in questions.jsonl, return the gold answer
+with placeholder evidence (status=verified, source=mock); otherwise cannot_verify. Kept for frontend
+work without the engines installed. Never used for evaluation.
 
 Run:  uvicorn app.main:app --reload --app-dir backend
 """
@@ -10,6 +10,7 @@ Run:  uvicorn app.main:app --reload --app-dir backend
 from __future__ import annotations
 
 import json
+import os
 import time
 from functools import lru_cache
 from typing import Dict, Tuple
@@ -17,7 +18,9 @@ from typing import Dict, Tuple
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from . import router as qa_router
 from .drawings import questions_path, router as drawings_router
+from .router import _guess_type
 
 from .schema import (
     Answer,
@@ -53,17 +56,6 @@ def _gold() -> Dict[Tuple[str, str], dict]:
     return out
 
 
-def _guess_type(question: str) -> QuestionType:
-    q = question.lower()
-    if any(k in q for k in ("m²", "m2", "area", "fläche", "pinta-ala", "areal", "surface")):
-        return QuestionType.area
-    if any(k in q for k in ("m³", "m3", "volume", "volumen")):
-        return QuestionType.volume
-    if any(k in q for k in ("length", "metres", "meters", "länge", "længde")):
-        return QuestionType.length
-    return QuestionType.count
-
-
 def _mock_evidence(n: int) -> list:
     if n <= 0:
         return [Evidence(shape=BBoxEvidence(bbox=(0.25, 0.25, 0.75, 0.75)), label="mock region", source=Source.mock)]
@@ -76,7 +68,13 @@ def _mock_evidence(n: int) -> list:
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True, "mode": "mock", "gold_questions_loaded": len(_gold())}
+    mode = "mock" if _mock() else "live"
+    return {"ok": True, "mode": mode, "gemma": mode == "live" and qa_router.gemma_available(),
+            "gold_questions_loaded": len(_gold())}
+
+
+def _mock() -> bool:
+    return os.environ.get("LEARGAS_MOCK", "").lower() in ("1", "true", "yes")
 
 
 @app.get("/schema")
@@ -87,6 +85,12 @@ def schema() -> dict:
 
 @app.post("/ask", response_model=Answer)
 def ask(req: AskRequest) -> Answer:
+    if not _mock():
+        return qa_router.route(req)
+    return _mock_ask(req)
+
+
+def _mock_ask(req: AskRequest) -> Answer:
     t0 = time.perf_counter()
     g = _gold().get((req.path, req.question))
     if g is not None:
