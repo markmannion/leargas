@@ -2,6 +2,65 @@
 
 Everything runs from the repo root with `python -m model.<name>`. Code that Harry imports is stdlib-only (Pillow is needed only for images).
 
+## Synthetic accuracy benchmark
+
+Generate **600 independent layouts, 1,200 clean/scan images with DXF twins, and
+36,000 gold questions** without using the challenge dataset or calling a model:
+
+```bash
+.venv/bin/python -m model.synthetic_data --out data/synthetic --plans 600
+```
+
+Install `backend/requirements-dxf.txt` if Pillow/ezdxf are missing. The output
+directory must be empty; use a different `--out` for another seed or larger run.
+`data/synthetic/preview.png` shows samples and `manifest.json` records the seed,
+counts and question-file checksum. `scenes.jsonl` contains the independent source
+of truth. Every image has questions about doors/windows/rooms, room labels and
+areas, metric/imperial conversion, dimensions and volumes, plus four questions
+that should return `cannot_verify`. Five languages and four densities are covered.
+
+The generator keeps all paraphrases, scan variants and CAD twins of a layout in
+the same train/validation/test split (480/60/60 layouts for the default run).
+Use its `split` field or `splits/*.jsonl`; splitting by filename would leak variants.
+Do not train on the test split. More correlated questions do not increase the
+number of independent layouts, and synthetic accuracy does not establish accuracy
+on real drawings. Continue using `data/splits/raster_eval.jsonl` for that.
+
+Evaluate the **vision model** with the existing `.env` endpoint configuration:
+
+```bash
+# Start with a varied 100-question test; omit --limit for all test questions.
+.venv/bin/python -m model.synthetic_eval --data data/synthetic --engine gemma-base --limit 100 --out results/synthetic/base_smoke.jsonl
+.venv/bin/python -m model.synthetic_eval --data data/synthetic --engine gemma-ft --out results/synthetic/ft_test.jsonl
+# Resume the identical selection/configuration after an interruption.
+.venv/bin/python -m model.synthetic_eval --data data/synthetic --engine gemma-ft --out results/synthetic/ft_test.jsonl --resume
+```
+
+Only the PNG and question reach the model. `--points` requests count evidence;
+gold normalized points are included in the question rows, but this runner scores
+answer accuracy only. `--concurrency` defaults to 4. `--limit` samples reproducibly
+across the selected rows. Filter with `--language en`, `--style scan`,
+`--difficulty dense`, or `--category geometry,reasoning`.
+
+The runner saves predictions, `.score.json` and per-question `.details.jsonl`.
+Counts require exact answers; area/length/volume allow 2% error with unit
+conversion. Answerable accuracy and refusal accuracy are reported separately,
+with breakdowns by language, difficulty, style, category and question type.
+Missing answers, malformed model output and request errors count as failures,
+including on refusal questions. Mock-mode results are rejected.
+
+Run a local **parser + geometry sanity check**, which does not measure Gemma:
+
+```bash
+.venv/bin/python -m model.synthetic_eval --data data/synthetic --engine geometry --category geometry --language en --out results/synthetic/geometry_test.jsonl
+```
+
+For the full `/ask` API, start a separate server rooted at the synthetic data
+(`LEARGAS_MOCK=0 LEARGAS_DATA_ROOT="$PWD/data/synthetic" ... uvicorn ...`),
+then pass `--api http://127.0.0.1:8000 --engine auto`. For existing external
+predictions, use `--predictions path/to/predictions.jsonl`; rows may be keyed by
+`id` or by `path` + `question`.
+
 ## What Harry uses
 
 ### C1: splits (`data/splits/`)

@@ -1,0 +1,120 @@
+{
+  "overall": {
+    "n": 2160,
+    "correct": 2160,
+    "accuracy": 1.0,
+    "coverage": 1.0,
+    "precision": 1.0,
+    "outcomes": {}
+  },
+  "answerable": {
+    "n": 2160,
+    "correct": 2160,
+    "accuracy": 1.0,
+    "coverage": 1.0,
+    "precision": 1.0,
+    "outcomes": {}
+  },
+  "category/geometry": {
+    "n": 2160,
+    "correct": 2160,
+    "accuracy": 1.0,
+    "coverage": 1.0,
+    "precision": 1.0,
+    "outcomes": {}
+  },
+  "difficulty/dense": {
+    "n": 600,
+    "correct": 600,
+    "accuracy": 1.0,
+    "coverage": 1.0,
+    "precision": 1.0,
+    "outcomes": {}
+  },
+  "difficulty/easy": {
+    "n": 420,
+    "correct": 420,
+    "accuracy": 1.0,
+    "coverage": 1.0,
+    "precision": 1.0,
+    "outcomes": {}
+  },
+  "difficulty/hard": {
+    "n": 600,
+    "correct": 600,
+    "accuracy": 1.0,
+    "coverage": 1.0,
+    "precision": 1.0,
+    "outcomes": {}
+  },
+  "difficulty/medium": {
+    "n": 540,
+    "correct": 540,
+    "accuracy": 1.0,
+    "coverage": 1.0,
+    "precision": 1.0,
+    "outcomes": {}
+  },
+  "language/en": {
+    "n": 2160,
+    "correct": 2160,
+    "accuracy": 1.0,
+    "coverage": 1.0,
+    "precision": 1.0,
+    "outcomes": {}
+  },
+  "split/test": {
+    "n": 2160,
+    "correct": 2160,
+    "accuracy": 1.0,
+    "coverage": 1.0,
+    "precision": 1.0,
+    "outcomes": {}
+  },
+  "style/clean": {
+    "n": 1080,
+    "correct": 1080,
+    "accuracy": 1.0,
+    "coverage": 1.0,
+    "precision": 1.0,
+    "outcomes": {}
+  },
+  "style/scan": {
+    "n": 1080,
+    "correct": 1080,
+    "accuracy": 1.0,
+    "coverage": 1.0,
+    "precision": 1.0,
+    "outcomes": {}
+  },
+  "type/area": {
+    "n": 960,
+    "correct": 960,
+    "accuracy": 1.0,
+    "coverage": 1.0,
+    "precision": 1.0,
+    "outcomes": {}
+  },
+  "type/count": {
+    "n": 1200,
+    "correct": 1200,
+    "accuracy": 1.0,
+    "coverage": 1.0,
+    "precision": 1.0,
+    "outcomes": {}
+  },
+  "_meta": {
+    "independent_layouts": 60,
+    "questions": 2160,
+    "tolerance": 0.02,
+    "layout_macro_accuracy": 1.0,
+    "note": "Synthetic accuracy only. Variants and paraphrases of each layout are correlated."
+  },
+  "_run": {
+    "dataset_sha256": "570074e41b55ed08ec15932fa3cd0ddf986863d102b6a59dd4222c62a77275de",
+    "selection_sha256": "990d7cd5c5b4d34f960b0da22dbe7c6c56ad7ca2e41eec34203a42023e41252d",
+    "engine": "geometry",
+    "api": null,
+    "points": false
+  }
+}

@@ -14,6 +14,7 @@ normalized to the PDF will not line up exactly on it. It is a stand-in when the 
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 from collections import defaultdict
 from functools import lru_cache
@@ -75,7 +76,10 @@ def _has_fitz() -> bool:
 
 
 def _render_pdf(p: Path, page: int) -> Path:
-    out = CACHE / f"{p.stem}.p{page}.png"
+    # Uploaded PDFs have a validated first-page raster, shared with the model.
+    if page == 0 and "uploads" in p.parts and p.with_suffix(".png").is_file():
+        return p.with_suffix(".png")
+    out = CACHE / f"{_cache_key(p)}.p{page}.png"
     if not out.exists():
         import fitz
 
@@ -90,9 +94,15 @@ def _render_pdf(p: Path, page: int) -> Path:
 DXF_MARGIN = 1.5  # drawing units are metres, rendered 1 unit = 1 mm, so 1.5 m of paper
 
 
+def _cache_key(p: Path) -> str:
+    # Different uploads may share a filename; their previews must remain distinct.
+    identity = f"{p.resolve()}:{p.stat().st_mtime_ns}"
+    return hashlib.sha256(identity.encode()).hexdigest()[:24]
+
+
 def _render_dxf(p: Path) -> Path:
     """Render a DXF to SVG, and record the framed region beside it (`<stem>.frame.json`)."""
-    out = CACHE / f"{p.stem}.svg"
+    out = CACHE / f"{_cache_key(p)}.svg"
     frame = out.with_suffix(".frame.json")
     if not out.exists() or not frame.exists():
         import ezdxf
@@ -115,8 +125,7 @@ def _render_dxf(p: Path) -> Path:
 
 def dxf_frame(dxf: Path) -> Dict[str, list]:
     """The DXF-coordinate region shown by the rendered sheet: content bbox plus margin."""
-    _render_dxf(dxf)
-    return json.loads((CACHE / f"{dxf.stem}.frame.json").read_text())
+    return json.loads(_render_dxf(dxf).with_suffix(".frame.json").read_text())
 
 
 def render_kind(rel: str) -> Optional[str]:
@@ -170,5 +179,7 @@ def _catalogue() -> List[dict]:
 
 @router.get("/drawings")
 def drawings(limit: int = Query(300, ge=1, le=5000), offset: int = Query(0, ge=0)) -> dict:
-    cat = _catalogue()
+    from .uploads import catalogue as uploaded_catalogue
+
+    cat = uploaded_catalogue() + _catalogue()
     return {"total": len(cat), "drawings": cat[offset:offset + limit]}

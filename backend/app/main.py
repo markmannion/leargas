@@ -26,6 +26,7 @@ from . import router as qa_router
 from .drawings import questions_path, router as drawings_router
 from .router import _guess_type
 from .voice import router as voice_router
+from .uploads import router as uploads_router
 
 from .schema import (
     Answer,
@@ -47,6 +48,7 @@ app.add_middleware(
 )
 app.include_router(drawings_router)
 app.include_router(voice_router)
+app.include_router(uploads_router)
 
 
 @lru_cache(maxsize=1)

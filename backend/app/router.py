@@ -389,12 +389,21 @@ def reconcile(req: AskRequest, q: Optional[Query], outcomes: List[Outcome]) -> d
             return answer(gem, Status.verified, gem.confidence, f"{gem.explanation}{note}")
         if gem.confidence >= GEMMA_PARTIAL:
             return answer(gem, Status.partial, gem.confidence, f"{gem.explanation} Low confidence.{note}")
-        reasons = [f"{gem.source.value} answered {gem.value} with low confidence ({gem.confidence:.2f})."]
+        reasons = [
+            f"The model guessed {_value(gem.value, qtype)} with a score of {gem.confidence:.0%}, "
+            f"below the {GEMMA_PARTIAL:.0%} acceptance threshold. "
+            "Try selecting a smaller region so the model can read the objects more clearly."
+        ]
+        # Retain rejected predictions for inspection without promoting them to an answer.
+        if not sources:
+            sources = [_source_answer(gem, qtype)]
     else:
         reasons = []
     reasons += [o.reason for o in outcomes if o.reason]
-    src = outcomes[0].source if outcomes else Source.geometry_dxf
-    return dict(answer=None, unit=None, type=qtype, status=Status.cannot_verify, confidence=0.0, source=src,
+    rejected = gem if gem and gem.ok else None
+    src = rejected.source if rejected else outcomes[0].source if outcomes else Source.geometry_dxf
+    return dict(answer=None, unit=None, type=qtype, status=Status.cannot_verify,
+                confidence=rejected.confidence if rejected else 0.0, source=src,
                 evidence=[], explanation=" ".join(reasons) or "No source can answer this drawing.", sources=sources)
 
 

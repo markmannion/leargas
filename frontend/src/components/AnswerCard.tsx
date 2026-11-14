@@ -20,6 +20,8 @@ interface Props {
 
 export function AnswerCard({ answer, reference, hovered, onHover, speech }: Props) {
   const cv = answer.status === 'cannot_verify'
+  const rejectedGuess = cv && answer.sources.some((s) => s.answer !== null)
+  const modelScore = answer.source === 'gemma_ft' || answer.source === 'gemma_base'
   const match = reference ? matchesReference(answer.answer, answer.unit, reference) : null
   const pct = Math.round(answer.confidence * 100)
   // Free-text answers can be a sentence; the big numeric style would fill the panel.
@@ -55,7 +57,7 @@ export function AnswerCard({ answer, reference, hovered, onHover, speech }: Prop
         {cv ? (
           <>
             <span className="value-big">—</span>
-            <span className="value-caption">No answer given</span>
+            <span className="value-caption">No verified answer</span>
           </>
         ) : (
           <>
@@ -65,7 +67,9 @@ export function AnswerCard({ answer, reference, hovered, onHover, speech }: Prop
         )}
       </div>
 
-      <p className="status-note">{STATUS_NOTE[answer.status]}</p>
+      <p className="status-note">
+        {rejectedGuess ? 'The model made a guess, but its score was too low to accept.' : STATUS_NOTE[answer.status]}
+      </p>
 
       <dl className="facts">
         {answer.region && <div><dt>Scope</dt><dd>Selected region</dd></div>}
@@ -77,8 +81,8 @@ export function AnswerCard({ answer, reference, hovered, onHover, speech }: Prop
           </dd>
         </div>
         <div>
-          <dt>Confidence</dt>
-          <dd className="confidence">
+          <dt>{modelScore ? 'Model score' : 'Confidence'}</dt>
+          <dd className="confidence" title={modelScore ? 'A score from the model’s answer tokens; not a probability that the answer is correct.' : undefined}>
             <span className="bar">
               <span style={{ width: `${pct}%` }} />
             </span>
@@ -102,7 +106,7 @@ export function AnswerCard({ answer, reference, hovered, onHover, speech }: Prop
 
       {answer.sources.length > 0 && (
         <div className="block">
-          <h3 className="block-title">Engines</h3>
+          <h3 className="block-title">{rejectedGuess ? 'Unverified guesses' : 'Engines'}</h3>
           <table className="sources">
             <tbody>
               {answer.sources.map((s, i) => (

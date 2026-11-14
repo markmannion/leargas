@@ -129,6 +129,33 @@ def test_reconcile_low_confidence_model_alone():
     req = AskRequest(path="data/cubicasa5k/x.png", question=WINDOWS_Q)
     out = reconcile(req, None, [Outcome(Source.gemma_ft, value=5, unit="count", confidence=0.2)])
     assert out["status"] == "cannot_verify" and out["answer"] is None
+    assert out["confidence"] == 0.2
+    assert out["source"] == Source.gemma_ft
+    assert out["sources"][0].answer == 5
+    assert out["sources"][0].confidence == 0.2
+    assert "below the 50% acceptance threshold" in out["explanation"]
+    assert out["evidence"] == []
+    Answer(path=req.path, question=req.question, **out)
+
+
+def test_rejected_model_score_survives_failed_geometry():
+    req = AskRequest(path="data/cubicasa5k/x.png", question=WINDOWS_Q)
+    out = reconcile(req, None, [
+        Outcome(Source.geometry_dxf, reason="No geometry available."),
+        Outcome(Source.gemma_ft, value=10, unit="count", confidence=0.31),
+    ])
+    assert out["answer"] is None and out["status"] == "cannot_verify"
+    assert out["source"] == Source.gemma_ft and out["confidence"] == 0.31
+    assert len(out["sources"]) == 2
+    assert out["sources"][0].answer is None
+    assert out["sources"][1].answer == 10
+
+
+def test_unavailable_model_has_no_rejected_guess():
+    req = AskRequest(path="data/cubicasa5k/x.png", question=WINDOWS_Q)
+    out = reconcile(req, None, [Outcome(Source.gemma_ft, reason="Model unavailable.")])
+    assert out["answer"] is None and out["confidence"] == 0
+    assert out["sources"] == []
 
 
 def test_agree_tolerance():
