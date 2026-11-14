@@ -665,7 +665,20 @@ button:disabled { cursor: default; }
 
 /* ---------- title block ---------- */
 
-.cs-block { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1.5px solid var(--ink); }
+/* Sits in the sheet's bottom-right corner, where the title block goes on a drawing. */
+.cs-block {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: min(380px, 100%);
+  border-top: 1.5px solid var(--ink);
+  border-left: 1.5px solid var(--ink);
+  background: var(--paper);
+  cursor: default;
+}
 .cs-f {
   display: flex;
   flex-direction: column;
