@@ -296,7 +296,7 @@ function AskCell({ s }: { s: Session }) {
             {s.voice && (
               <button type="button" className={`cs-mic is-${mic.state}`} onClick={(e) => { e.stopPropagation(); mic.toggle() }}
                 aria-pressed={listening} disabled={blocked || mic.state === 'transcribing'}
-                title={listening ? 'Stop and ask' : 'Ask by speaking, in any language'}>
+                title={listening ? 'Stop and ask' : 'Ask by speaking'}>
                 <MicIcon />
                 {listening ? 'Stop' : mic.state === 'transcribing' ? 'Writing…' : 'Speak'}
               </button>
