@@ -1,122 +1,119 @@
-# model/: Mark's raster track
+# model/: the vision model
 
-Everything runs from the repo root with `python -m model.<name>`. Code that Harry imports is stdlib-only (Pillow is needed only for images).
+Everything here trains, serves, evaluates and calibrates the vision model: **Gemma 4 E4B** fine-tuned with LoRA
+to answer questions about floor-plan images. Run every command from the repository root as
+`python -m model.<name>`.
 
-## Synthetic accuracy benchmark
+Code the backend imports (`common`, `prompt`, `client`, `scoring`, `gemma_engine`) uses only the standard library
+and Pillow, so the backend needs no machine-learning packages.
 
-Generate **600 independent layouts, 1,200 clean/scan images with DXF twins, and
-36,000 gold questions** without using the challenge dataset or calling a model:
+## What is live
 
-```bash
-.venv/bin/python -m model.synthetic_data --out data/synthetic --plans 600
-```
+| Served name | Weights | Answers |
+|---|---|---|
+| `gemma-ft` | **The augmented model**: run 1, then 500 more steps on the CubiCasa-focused mix with half the images randomly damaged (`augment_sft.py`) | All uploads and every other image question |
+| `gemma-ft-cc` | The CubiCasa specialist: the same mix without the damage | Dataset CubiCasa windows, doors, sinks and showers |
+| `gemma-base` | Gemma 4 E4B, not fine-tuned | Comparison, and the question parser's fallback |
 
-Install `backend/requirements-dxf.txt` if Pillow/ezdxf are missing. The output
-directory must be empty; use a different `--out` for another seed or larger run.
-`data/synthetic/preview.png` shows samples and `manifest.json` records the seed,
-counts and question-file checksum. `scenes.jsonl` contains the independent source
-of truth. Every image has questions about doors/windows/rooms, room labels and
-areas, metric/imperial conversion, dimensions and volumes, plus four questions
-that should return `cannot_verify`. Five languages and four densities are covered.
+The backend uses each model's own calibration file (`results/calibration_<label>.json`). For `gemma-ft` the label
+is set with `LEARGAS_GEMMA_FT_LABEL=gemma-ft-cc-aug`.
 
-The generator keeps all paraphrases, scan variants and CAD twins of a layout in
-the same train/validation/test split (480/60/60 layouts for the default run).
-Use its `split` field or `splits/*.jsonl`; splitting by filename would leak variants.
-Do not train on the test split. More correlated questions do not increase the
-number of independent layouts, and synthetic accuracy does not establish accuracy
-on real drawings. Continue using `data/splits/raster_eval.jsonl` for that.
+## Results
 
-Evaluate the **vision model** with the existing `.env` endpoint configuration:
+1,000 fixed held-out questions (`data/splits/raster_eval.jsonl`: 600 CubiCasa, 400 Swiss). "Scan", "photo" and
+"low-res" are the same images damaged by `robustness.py`.
 
-```bash
-# Start with a varied 100-question test; omit --limit for all test questions.
-.venv/bin/python -m model.synthetic_eval --data data/synthetic --engine gemma-base --limit 100 --out results/synthetic/base_smoke.jsonl
-.venv/bin/python -m model.synthetic_eval --data data/synthetic --engine gemma-ft --out results/synthetic/ft_test.jsonl
-# Resume the identical selection/configuration after an interruption.
-.venv/bin/python -m model.synthetic_eval --data data/synthetic --engine gemma-ft --out results/synthetic/ft_test.jsonl --resume
-```
+| Model | Clean | Scan | Photo | Low-res | Notes |
+|---|---:|---:|---:|---:|---|
+| Prior (most common answer) | 40.0% | | | | |
+| Gemma 4 E4B, base | 33.0% | | | | |
+| Gemma 4 E2B, base | 35.0% | | | | |
+| E2B fine-tuned, run 1 recipe | 58.0% | | | | $0.040 per 1,000 answers |
+| E4B run 1 | 61.0% | 60.2% | 58.9% | 56.4% | $0.046 per 1,000 answers |
+| E4B run 2 (reweighted + reworded questions) | 59.1% | | | | dropped |
+| E4B CubiCasa specialist | **62.4%** | 60.3% | 59.4% | 57.8% | |
+| **E4B augmented (live `gemma-ft`)** | 61.6% | **61.6%** | **60.3%** | **58.2%** | |
+| Model soups (weight averages) | 60.5%, 61.1% | | | | dropped |
 
-Only the PNG and question reach the model. `--points` requests count evidence;
-gold normalized points are included in the question rows, but this runner scores
-answer accuracy only. `--concurrency` defaults to 4. `--limit` samples reproducibly
-across the selected rows. Filter with `--language en`, `--style scan`,
-`--difficulty dense`, or `--category geometry,reasoning`.
+Also tried and dropped: twice the image detail (1,120 image tokens: 33.7% vs 33.0% for the base model, at double
+the cost), cropping Swiss sheets to the plan, and zero-shot point-then-count and tiling for doors and windows.
 
-The runner saves predictions, `.score.json` and per-question `.details.jsonl`.
-Counts require exact answers; area/length/volume allow 2% error with unit
-conversion. Answerable accuracy and refusal accuracy are reported separately,
-with breakdowns by language, difficulty, style, category and question type.
-Missing answers, malformed model output and request errors count as failures,
-including on refusal questions. Mock-mode results are rejected.
+Through the hosted app, on held-out drawings uploaded as unknown files: **54% right, 77% right when it answers**.
+The full table is `results/table.md` (`python -m model.report`).
 
-Run a local **parser + geometry sanity check**, which does not measure Gemma:
-
-```bash
-.venv/bin/python -m model.synthetic_eval --data data/synthetic --engine geometry --category geometry --language en --out results/synthetic/geometry_test.jsonl
-```
-
-For the full `/ask` API, start a separate server rooted at the synthetic data
-(`LEARGAS_MOCK=0 LEARGAS_DATA_ROOT="$PWD/data/synthetic" ... uvicorn ...`),
-then pass `--api http://127.0.0.1:8000 --engine auto`. For existing external
-predictions, use `--predictions path/to/predictions.jsonl`; rows may be keyed by
-`id` or by `path` + `question`.
-
-## What Harry uses
-
-### C1: splits (`data/splits/`)
-
-| File | What |
-|---|---|
-| `heldout_drawings.txt` | Every file on disk in a held-out drawing group: pdf/dxf/png twins, and all views of a held-out IFC model. 299 groups, about 5% per source. All of `opening_design` is held out (eval only). |
-| `demo_questions.jsonl` | 50 held-out questions across every source and type, plus 3 that should abstain (`"expected": "cannot_verify"`). `beat` links rows to the demo script. |
-| `judge_questions.jsonl` | 30 judge-style questions: 15 paraphrases (sv/fr/nl/de/fi/casual en; gold copied from `questions.jsonl`), 10 new questions on held-out drawings, and 5 on unlabelled Finna/HABS drawings. `kind` and `answer_check` say where each answer came from. |
-| `raster_eval.jsonl` | The fixed ~1,000 held-out raster questions (600 CubiCasa, 400 swiss) that every model run is scored on. Use it for `run_eval.py --sources` too, so the numbers compare. |
-| `swiss_printed_areas.json` | `{stem: bool}`: does the swiss render print room m²? Only 307 of 1,040 do. |
-
-```python
-from model.common import is_heldout, group_key, load_questions
-is_heldout("data/swiss_dwellings/site2297_bldg3392_floor15123.dxf")   # True: twins collapse
-```
-Export C4 point labels for drawings where `not is_heldout(path)` only.
-
-### C3: prompt builder, parser and client
-
-```python
-from model.prompt import build_text_messages, extract_json      # question -> query parsing
-msgs = build_text_messages(SYSTEM, question, few_shot=[("How many windows…", {"op": "count", "target": "window"})])
-
-from model.client import chat, ask                               # reads MODEL_BASE_URL / MODEL_API_KEY from .env
-resp = chat(msgs, "gemma-base", temperature=0, max_tokens=128)
-query = extract_json(resp["choices"][0]["message"]["content"])
-
-out = ask("data/cubicasa5k/colorful-10052.png", "How many windows?", model="gemma-ft")
-# {"answer": 7, "unit": "count", "points": [[x, y], …] | None, "confidence": 0.93, "abstained": False,
-#  "reason": None, "ok": True, "raw": "...", "latency_ms": 840, ...}
-```
-- `points` are already in C2 convention: `[x, y]`, normalised 0–1. The model writes `[y, x]` on a 0–1000 grid (Gemma's native detection format) and `parse_output` converts.
-- `confidence` is the mean token probability of the answer's tokens (vLLM `logprobs`). It is `None` if logprobs weren't requested.
-- Swiss questions point at the PDF. The raster model sees the PNG twin (`baseline_eval.raster_image_path`).
-
-### The frontend's expectations of C5 (please check these, Harry)
-- `GET /drawing/{path}/image`: the frontend URL-encodes each path segment (`opening_design` paths contain spaces), e.g. `/drawing/data/opening_design/Sports_Complex/Sheets%20-%20Current%20Set/A-801….pdf/image`. A FastAPI route `/drawing/{path:path}/image` handles it.
-- `POST /ask` JSON: `{"path", "question", "model"?}`. Uploads are sent as **multipart** with fields `upload` (file), `question` and `model`. `model` is omitted for "Auto".
-- `POST /feedback`: `{"answer_id", "added": [[x, y], …], "removed": ["e3", …]}`. It is sent on every change with the **full current state** for that answer, so the server should keep the latest per `answer_id` (or append; the last line wins).
-- CORS: allow `http://localhost:5173` in dev.
-
-## Mark's runbook
+## Pipeline
 
 | Step | Command |
 |---|---|
-| M1 split / demo / judge | `python -m model.make_split && python -m model.make_demo_set && python -m model.make_judge_set` |
-| M2 box | see `infra/verda.md` |
-| M3 check on real outputs | `python -m model.smoke_test --model gemma-base --n 20 && python tests/test_prompt.py` |
-| M4 baselines | `python -m model.baseline_eval --models prior,gemma-base && python -m model.report` |
-| M4b CubiCasa points | `python -m model.cubicasa_points --root ~/cubicasa/cubicasa5k --inspect 5`, then without `--inspect`, then `--check 5` |
-| M5 SFT data | `python -m model.build_sft --out data/sft/run1.jsonl --n 20000` (`--preview 12` to eyeball resolution) |
-| M6 train | `python -m model.train_lora --check-processor`, then a `--max-steps 5 --no-push` smoke run, then the real run (see the docstring) |
-| M8 eval run 1 | `python -m model.baseline_eval --models gemma-ft --out results/run1.json && python -m model.report` |
-| M12 eval run 2 (served as `gemma-ft` too, so **`--label` is required** or run 1's cached predictions are reused) | `python -m model.baseline_eval --models gemma-ft --label gemma-ft-run2 --points && python -m model.report` |
-| M12 point accuracy | `python -m model.cubicasa_points --root ~/cubicasa/cubicasa5k --heldout-eval` (once, eval-only labels), then `python -m model.point_eval --preds results/preds/gemma-ft-run2__heldout_raster.jsonl --overlays 6` → `results/points.json` + slide images in `results/points_overlays/` |
-| M9 run 2 data | `python -m model.build_sft --out data/sft/run2.jsonl --n 60000 --points` |
-| M11b sweep | `python -m model.throughput --model <m> --usd-per-hour <rate>` per model, then `python eval/sweep_chart.py` |
-| Tests | `python tests/test_prompt.py && python tests/test_splits.py` |
+| Split by drawing (twins stay together) | `python -m model.make_split` (also `make_demo_set`, `make_judge_set`) |
+| Training data | `python -m model.build_sft --out data/sft/run1.jsonl --n 20000` (`--focus <regex> --focus-frac 0.6` for a specialist mix, `--paraphrase-frac 0.25` for reworded questions, `--preview 12` to look at the images) |
+| Damage half the images | `python -m model.augment_sft --data data/sft/spec_cc.jsonl --out data/sft/spec_cc_aug.jsonl --img-dir ~/aug/spec_cc --frac 0.5` |
+| Train | `python -m model.train_lora --model ~/merged/run1 --data <file> --run <name> --max-steps 500` (about 50 min on an A100), then `--merge-only --run <name>` |
+| Serve | `bash infra/serve.sh model <served-name> <port> ~/merged/<name> 0.25` |
+| Score | `python -m model.baseline_eval --models <served-name> --out results/<name>.json` |
+| Calibrate | `python -m model.calibrate --label <name>` (the confidence where 95% of answers are right, per source and question type) |
+| Report | `python -m model.report` → `results/table.md`; `python eval/sweep_chart.py` → accuracy-versus-cost chart |
+
+`infra/aug_chain.sh`, `infra/spec_chain.sh` and `infra/soup_chain.sh` run whole experiments unattended on the GPU
+server. Train and serve must use the same image budget: `prompt.MAX_SOFT_TOKENS` = `serve.sh SOFT_TOKENS` = 560,
+with images resized to a 1,600 px long side.
+
+Never train on a held-out drawing: `common.is_heldout(path)` is true for every twin of one (`augment_sft` refuses
+them too).
+
+## Test batteries
+
+| Command | What it measures |
+|---|---|
+| `python -m model.robustness --out ~/degraded` + `infra/robust_chain.sh` | The held-out set as scans, phone photos and low-resolution copies |
+| `python -m model.hosted_battery build` / `run --base https://<host>` | The live app on held-out drawings renamed and uploaded as PNG, JPG, PDF and phone photo, plus Stoa's sheets and the judge set |
+| `python -m model.stoa_battery --base https://<host>` | Hand-checked facts on Stoa's four example sheets, each asked 3–6 ways |
+| `python -m model.routed_eval` | The generalist plus the specialist, combined by the router rule, from cached predictions |
+| `python -m model.synthetic_data` + `synthetic_eval` | A synthetic benchmark with DXF twins and no dataset use (below) |
+
+Battery outputs are written to `results/battery/`, which is not in git (they contain dataset content).
+
+## Using the model from code
+
+```python
+from model.client import ask          # reads MODEL_BASE_URL / MODEL_API_KEY from .env
+out = ask("data/cubicasa5k/colorful-10052.png", "How many windows?", model="gemma-ft")
+# {"answer": 7, "unit": "count", "confidence": 0.93, "abstained": False, "latency_ms": 840, ...}
+
+from model.gemma_engine import answer  # returns a backend Answer, with a calibrated status
+a = answer("data/cubicasa5k/colorful-10052.png", "How many windows?", engine="gemma_ft")
+```
+
+- `confidence` is the mean probability of the answer's tokens (vLLM logprobs).
+- Swiss questions point at the PDF; the model reads its PNG twin. Any other PDF is rendered to a page-1 PNG twin.
+- Gemma writes points as `[y, x]` on a 0–1000 grid; `prompt.parse_output` converts them to `[x, y]` in 0–1.
+  The live models are not trained to give points.
+
+## Splits (`data/splits/`, not in git)
+
+| File | What |
+|---|---|
+| `heldout_drawings.txt` | Every file in a held-out drawing group (PDF, DXF and PNG twins, and all views of an IFC model): 299 groups, about 5% of each source. All of `opening_design` is held out. |
+| `raster_eval.jsonl` | The fixed 1,000 held-out image questions every model is scored on. |
+| `judge_questions.jsonl` | 30 judge-style questions: paraphrases in several languages, new questions on held-out drawings, and questions on unlabelled archive drawings. |
+| `demo_questions.jsonl` | 50 held-out questions across sources and types, plus 3 that should be held back. |
+| `swiss_printed_areas.json` | Whether each Swiss render prints room areas (307 of 1,040 do). Area questions on the others go to the DXF engine. |
+
+## Synthetic benchmark
+
+`synthetic_data` makes 600 floor-plan layouts with clean and scan images, DXF twins and 36,000 gold questions,
+without the challenge dataset or a model. All variants of a layout stay in the same split; use its `split` field.
+
+```bash
+python -m model.synthetic_data --out data/synthetic --plans 600
+python -m model.synthetic_eval --data data/synthetic --engine gemma-ft --limit 100 --out results/synthetic/ft.jsonl
+python -m model.synthetic_eval --data data/synthetic --engine geometry --category geometry --out results/synthetic/geometry_test.jsonl
+```
+
+Synthetic accuracy does not prove accuracy on real drawings; use `raster_eval.jsonl` for that.
+
+## Tests
+
+```bash
+python tests/test_prompt.py && python tests/test_splits.py && python tests/test_point_eval.py && python tests/test_gemma_engine.py
+```
