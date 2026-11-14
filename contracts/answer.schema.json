@@ -1,0 +1,396 @@
+{
+  "$defs": {
+    "BBoxEvidence": {
+      "properties": {
+        "kind": {
+          "const": "bbox",
+          "default": "bbox",
+          "title": "Kind",
+          "type": "string"
+        },
+        "bbox": {
+          "description": "[x0, y0, x1, y1]",
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            }
+          ],
+          "title": "Bbox",
+          "type": "array"
+        }
+      },
+      "required": [
+        "bbox"
+      ],
+      "title": "BBoxEvidence",
+      "type": "object"
+    },
+    "Evidence": {
+      "description": "One highlighted item on the drawing \u2014 e.g. one counted window, or one room polygon.",
+      "properties": {
+        "shape": {
+          "discriminator": {
+            "mapping": {
+              "bbox": "#/$defs/BBoxEvidence",
+              "point": "#/$defs/PointEvidence",
+              "polygon": "#/$defs/PolygonEvidence"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/PolygonEvidence"
+            },
+            {
+              "$ref": "#/$defs/BBoxEvidence"
+            },
+            {
+              "$ref": "#/$defs/PointEvidence"
+            }
+          ],
+          "title": "Shape"
+        },
+        "page": {
+          "default": 0,
+          "description": "0-based page index for multi-page PDFs; 0 for images",
+          "minimum": 0,
+          "title": "Page",
+          "type": "integer"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "e.g. \"window\", \"Living Room 27.7 m\u00b2\"",
+          "title": "Label"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "This item's contribution, e.g. a room's m\u00b2",
+          "title": "Value"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Source"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "shape"
+      ],
+      "title": "Evidence",
+      "type": "object"
+    },
+    "PointEvidence": {
+      "properties": {
+        "kind": {
+          "const": "point",
+          "default": "point",
+          "title": "Kind",
+          "type": "string"
+        },
+        "point": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            }
+          ],
+          "title": "Point",
+          "type": "array"
+        }
+      },
+      "required": [
+        "point"
+      ],
+      "title": "PointEvidence",
+      "type": "object"
+    },
+    "PolygonEvidence": {
+      "properties": {
+        "kind": {
+          "const": "polygon",
+          "default": "polygon",
+          "title": "Kind",
+          "type": "string"
+        },
+        "points": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "minItems": 3,
+          "title": "Points",
+          "type": "array"
+        }
+      },
+      "required": [
+        "points"
+      ],
+      "title": "PolygonEvidence",
+      "type": "object"
+    },
+    "QuestionType": {
+      "enum": [
+        "count",
+        "area",
+        "length",
+        "volume",
+        "text",
+        "other"
+      ],
+      "title": "QuestionType",
+      "type": "string"
+    },
+    "Source": {
+      "enum": [
+        "geometry_dxf",
+        "geometry_ifc",
+        "gemma_ft",
+        "gemma_base",
+        "mock"
+      ],
+      "title": "Source",
+      "type": "string"
+    },
+    "SourceAnswer": {
+      "description": "What an individual source said, kept so the UI can show agreement/disagreement.",
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/Source"
+        },
+        "answer": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Answer"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Unit"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "confidence": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        }
+      },
+      "required": [
+        "source",
+        "answer",
+        "confidence"
+      ],
+      "title": "SourceAnswer",
+      "type": "object"
+    },
+    "Status": {
+      "enum": [
+        "verified",
+        "partial",
+        "disagreement",
+        "cannot_verify"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "Unit": {
+      "enum": [
+        "count",
+        "m",
+        "m2",
+        "m3",
+        "ft",
+        "ft2",
+        "ft3"
+      ],
+      "title": "Unit",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "path": {
+      "title": "Path",
+      "type": "string"
+    },
+    "question": {
+      "title": "Question",
+      "type": "string"
+    },
+    "answer": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "null when status is cannot_verify",
+      "title": "Answer"
+    },
+    "unit": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Unit"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "null for text answers"
+    },
+    "type": {
+      "$ref": "#/$defs/QuestionType"
+    },
+    "status": {
+      "$ref": "#/$defs/Status"
+    },
+    "confidence": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Confidence",
+      "type": "number"
+    },
+    "source": {
+      "$ref": "#/$defs/Source",
+      "description": "Source whose value is reported in `answer`"
+    },
+    "evidence": {
+      "items": {
+        "$ref": "#/$defs/Evidence"
+      },
+      "title": "Evidence",
+      "type": "array"
+    },
+    "explanation": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Short human-readable reasoning / why it can't verify",
+      "title": "Explanation"
+    },
+    "sources": {
+      "description": "Per-source answers when the router ran more than one",
+      "items": {
+        "$ref": "#/$defs/SourceAnswer"
+      },
+      "title": "Sources",
+      "type": "array"
+    },
+    "latency_ms": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Latency Ms"
+    }
+  },
+  "required": [
+    "path",
+    "question",
+    "answer",
+    "type",
+    "status",
+    "confidence",
+    "source"
+  ],
+  "title": "Answer",
+  "type": "object"
+}
