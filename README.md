@@ -127,8 +127,25 @@ All commands start from the repository root.
 
 ## How to deploy it
 
-The backend runs in a Hugging Face Docker Space. The frontend runs on Vercel.
-The dataset is not in the image. The Space downloads it from the private dataset at startup.
+The frontend runs on Vercel. The backend runs on the Verda GPU box, next to the model server.
+A Cloudflare tunnel gives the backend a public https address.
+
+1. On the box, run the backend script. It installs the backend, downloads the dataset and starts the tunnel.
+   It prints the address of the API at the end.
+
+   ```bash
+   ssh <box> 'bash -s' < infra/serve_backend.sh
+   ```
+
+2. On Vercel, import this repository. Set the root directory to `frontend`.
+   Add the environment variable `VITE_API_BASE=<the address from step 1>`, then deploy.
+
+To update the backend, run the script again. It keeps the same tunnel address.
+If the box restarts, the address changes. Then update `VITE_API_BASE` on Vercel and redeploy.
+
+### Other option: Hugging Face Docker Space (paid plan)
+
+The Space downloads the dataset from the private dataset at startup.
 
 1. On Hugging Face, create a new Space with the Docker SDK (blank template). The CPU upgrade makes OCR faster.
    Optional: add persistent storage, so the Space does not download the dataset again after each restart.
