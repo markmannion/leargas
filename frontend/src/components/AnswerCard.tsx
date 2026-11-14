@@ -14,9 +14,11 @@ interface Props {
   reference: DatasetQuestion | null
   hovered: number | null
   onHover: (i: number | null) => void
+  /** Present when voice is on: replays / stops the spoken answer. */
+  speech?: { speaking: boolean; onToggle: () => void; error: string | null }
 }
 
-export function AnswerCard({ answer, reference, hovered, onHover }: Props) {
+export function AnswerCard({ answer, reference, hovered, onHover, speech }: Props) {
   const cv = answer.status === 'cannot_verify'
   const match = reference ? matchesReference(answer.answer, answer.unit, reference) : null
   const pct = Math.round(answer.confidence * 100)
@@ -25,9 +27,25 @@ export function AnswerCard({ answer, reference, hovered, onHover }: Props) {
     <section className={`answer status-${answer.status}`} aria-live="polite">
       <header className="answer-head">
         <span className={`status-pill status-${answer.status}`}>{STATUS_LABEL[answer.status]}</span>
-        <span className="answer-meta mono">
-          {TYPE_LABEL[answer.type]}
-          {answer.latency_ms != null && <> · {formatMs(answer.latency_ms)}</>}
+        <span className="answer-head-right">
+          <span className="answer-meta mono">
+            {TYPE_LABEL[answer.type]}
+            {answer.latency_ms != null && <> · {formatMs(answer.latency_ms)}</>}
+          </span>
+          {speech && (
+            <button
+              type="button"
+              className={`speak${speech.speaking ? ' on' : ''}`}
+              onClick={speech.onToggle}
+              aria-label={speech.speaking ? 'Stop reading the answer' : 'Read the answer aloud'}
+              title={speech.error ?? (speech.speaking ? 'Stop' : 'Read aloud')}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" />
+                {speech.speaking ? <path d="M17 9l4 6M21 9l-4 6" /> : <path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" />}
+              </svg>
+            </button>
+          )}
         </span>
       </header>
 
