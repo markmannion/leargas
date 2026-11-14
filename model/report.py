@@ -12,7 +12,7 @@ import json
 
 from .baseline_eval import RESULTS
 
-ORDER = ["prior", "gemma-e2b", "gemma-base", "gemma-26b", "gemma-ft", "gemma-ft-run2"]
+ORDER = ["prior", "gemma-e2b", "gemma-ft-e2b", "gemma-base", "gemma-ft", "gemma-ft-run2", "gemma-26b"]
 
 
 def load_all() -> dict:
