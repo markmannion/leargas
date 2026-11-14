@@ -77,13 +77,24 @@ systemctl restart leargas-api
 echo "== caddy (https://$LEARGAS_DOMAIN)"
 command -v caddy >/dev/null || { apt-get update -qq; DEBIAN_FRONTEND=noninteractive apt-get install -y -qq caddy >/dev/null; }
 cat > /etc/caddy/Caddyfile <<EOF
+{
+	# No HTTP/3: browsers switch to it after the first visit, and when UDP 443 does not get
+	# through they hang instead of falling back, so the app stays on "Checking".
+	servers {
+		protocols h1 h2
+	}
+}
+
 $LEARGAS_DOMAIN {
+	# Tell browsers that saw the old h3 offer to forget it.
+	header Alt-Svc clear
 	encode gzip
 	reverse_proxy localhost:$PORT
 }
 EOF
 systemctl enable -q caddy
-systemctl reload caddy 2>/dev/null || systemctl restart caddy
+# Restart, not reload, so a protocol change (closing UDP 443) takes effect.
+systemctl restart caddy
 
 echo "waiting for the API (the first run downloads the dataset, ~10 min; log: journalctl -u leargas-api -f)"
 until curl -sf "localhost:$PORT/health" >/dev/null; do
