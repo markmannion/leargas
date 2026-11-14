@@ -25,7 +25,11 @@ LABELS = {
     "gemma-e2b": "Gemma 4 E2B base",
     "gemma-ft-e2b": "Gemma 4 E2B fine-tuned",
     "gemma-26b": "Gemma 4 26B A4B base",
+    "gemma-ft-cc": "E4B + CubiCasa specialist (routed)",
 }
+# Fine-tunes of the same base run at the same speed, so a model with results but no throughput row
+# borrows the cost of its sibling (marked in the tooltip).
+COST_AS = {"gemma-ft-run2": "gemma-ft", "gemma-ft-cc": "gemma-ft", "gemma-ft-routed": "gemma-ft"}
 FT_COLOR, BASE_COLOR = "#2a78d6", "#eb6834"
 INK, INK2, MUTED, GRID, SURFACE = "#0b0b0b", "#52514e", "#8a8984", "#e6e5e0", "#fcfcfb"
 
@@ -50,6 +54,9 @@ def collect(set_name: str) -> list[dict]:
     tp_path = RESULTS / "throughput.json"
     tp = json.loads(tp_path.read_text(encoding="utf-8")) if tp_path.exists() else {}
     pts = []
+    for model, sib in COST_AS.items():
+        if model not in tp and sib in tp and accuracy(model, set_name) is not None:
+            tp[model] = {**tp[sib], "cost_from": sib}
     for model, rec in tp.items():
         acc = accuracy(model, set_name)
         if acc is None:

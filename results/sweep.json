@@ -34,5 +34,14 @@
     "qps": 16.556,
     "gpu": "A100 80GB (shared)",
     "fine_tuned": true
+  },
+  {
+    "model": "gemma-ft-run2",
+    "label": "E4B fine-tuned (run 2)",
+    "acc": 0.591,
+    "usd_per_1k": 0.0463,
+    "qps": 14.294,
+    "gpu": "A100 80GB (shared)",
+    "fine_tuned": true
   }
 ]
