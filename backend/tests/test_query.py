@@ -94,10 +94,10 @@ QUESTIONS = [
 @pytest.fixture
 def table(tmp_path, monkeypatch):
     qf = tmp_path / "q.jsonl"
-    qf.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in QUESTIONS))
+    qf.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in QUESTIONS), encoding="utf-8")
     tbl, stats = build(str(qf))
     out = tmp_path / "t.json"
-    out.write_text(json.dumps({"stats": stats, "templates": tbl}, ensure_ascii=False))
+    out.write_text(json.dumps({"stats": stats, "templates": tbl}, ensure_ascii=False), encoding="utf-8")
     monkeypatch.setenv("LEARGAS_QUERY_TEMPLATES", str(out))
     monkeypatch.delenv("LEARGAS_LLM_BASE_URL", raising=False)
     parser.templates.cache_clear()

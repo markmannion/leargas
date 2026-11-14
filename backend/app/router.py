@@ -45,9 +45,14 @@ from .schema import (
 
 AGREE_TOL = 0.02  # relative, matches the official scoring tolerance
 GEOMETRY_CONFIDENCE = 0.95
-GEMMA_VERIFIED = float(os.environ.get("LEARGAS_GEMMA_VERIFIED", 0.8))
+# gemma-base is ~93% right at confidence >= 0.99 but only ~58% at 0.8-0.95 (957 held-out answers,
+# results/calibration_gemma-base.json), so anything lower lets wrong answers through as verified.
+GEMMA_VERIFIED = float(os.environ.get("LEARGAS_GEMMA_VERIFIED", 0.99))
 GEMMA_PARTIAL = float(os.environ.get("LEARGAS_GEMMA_PARTIAL", 0.5))
 GEMMA_TIMEOUT = float(os.environ.get("LEARGAS_GEMMA_TIMEOUT", 60))
+# Run 1 and every baseline were prompted without the points addendum; only a model trained with
+# points (run 2) should get it.
+GEMMA_POINTS = os.environ.get("LEARGAS_GEMMA_POINTS", "0") == "1"
 IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg")
 
 _pool = ThreadPoolExecutor(max_workers=8)
@@ -216,7 +221,7 @@ def run_gemma(source: Source, image: Optional[Path], question: str) -> Outcome:
         return out
     name = "gemma-ft" if source == Source.gemma_ft else "gemma-base"
     try:
-        r = client.ask(str(image), question, model=name, with_points=True, timeout=GEMMA_TIMEOUT)
+        r = client.ask(str(image), question, model=name, with_points=GEMMA_POINTS, timeout=GEMMA_TIMEOUT)
     except Exception as e:
         out.reason = f"{name} request failed: {e}"
         return out
@@ -327,6 +332,15 @@ def reconcile(req: AskRequest, q: Optional[Query], outcomes: List[Outcome]) -> d
 
 # ------------------------------------------------------------------------------------ entry point
 
+def _area_unprinted(req: AskRequest, q: Optional[Query]) -> bool:
+    """Area question on a swiss render that prints no m² (gemma-base: 0/68). The DXF still answers."""
+    if _qtype(q, req, None) != QuestionType.area or _import_model_pkg() is None:
+        return False
+    from model import common
+
+    return common.prints_areas(req.path) is False
+
+
 def route(req: AskRequest) -> Answer:
     t0 = time.perf_counter()
     engine = req.engine or "auto"
@@ -356,6 +370,12 @@ def route(req: AskRequest) -> Answer:
         q = parse(req.question, use_llm=False).query  # only for the answer type
 
     outcomes += [j.result() for j in jobs]
+    if jobs and _area_unprinted(req, q):
+        outcomes = [
+            Outcome(o.source, reason="This sheet prints no room areas, so the model can't read one off the image.")
+            if o.source in (Source.gemma_ft, Source.gemma_base) else o
+            for o in outcomes
+        ]
     if engine == "auto" and gemma_src is None and not (dxf or ifc):
         outcomes.append(Outcome(Source.gemma_ft, reason="Model endpoint not configured (MODEL_BASE_URL)."))
 
