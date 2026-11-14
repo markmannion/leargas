@@ -29,6 +29,9 @@
   --measure-tint: #e9f0fc;
   --model: #8b3fb5;
   --model-tint: #f4ebf9;
+  /* Listening light, as on a voice assistant: cyan blue. */
+  --listen: #00a3e8;
+  --listen-rgb: 0 163 232;
   --strip: 404px;
   --font: 'Archivo Variable', 'Arial Narrow', Arial, sans-serif;
   color-scheme: light;
@@ -354,7 +357,25 @@ button:disabled { cursor: default; }
 .cs-q:hover:not(.is-off) { box-shadow: 0 0 0 3px var(--wash); }
 .cs-q:focus-within, .cs-q:focus-within:hover { box-shadow: 0 0 0 3px var(--hl); }
 .cs-q.is-off { border-color: var(--hair); background: var(--wash); cursor: default; }
-.cs-q.is-listening, .cs-q.is-listening:hover, .cs-q.is-listening:focus-within { border-color: var(--red); box-shadow: 0 0 0 3px rgba(205, 42, 29, 0.18); }
+/* Listening: a blue glow that breathes while waiting and swells with the voice (--lvl, 0-1, set inline). */
+.cs-q.is-listening, .cs-q.is-listening:hover, .cs-q.is-listening:focus-within {
+  position: relative;
+  border-color: var(--listen);
+  box-shadow:
+    0 0 0 calc(1px + 2px * var(--lvl, 0)) rgb(var(--listen-rgb) / 0.55),
+    0 0 calc(10px + 26px * var(--lvl, 0)) calc(1px + 6px * var(--lvl, 0)) rgb(var(--listen-rgb) / calc(0.3 + 0.5 * var(--lvl, 0)));
+  transition: box-shadow 90ms linear, border-color 120ms;
+}
+.cs-q.is-listening::after {
+  content: '';
+  position: absolute;
+  inset: -1.5px;
+  pointer-events: none;
+  box-shadow: 0 0 16px 3px rgb(var(--listen-rgb) / 0.5);
+  animation: cs-breathe 1.8s ease-in-out infinite;
+}
+@keyframes cs-breathe { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .cs-q.is-listening::after { animation: none; opacity: 0.6; } }
 .cs-ask textarea {
   display: block;
   width: 100%;
@@ -369,7 +390,7 @@ button:disabled { cursor: default; }
 }
 .cs-ask textarea:focus { outline: none; }
 .cs-ask textarea::placeholder { color: var(--ink-3); }
-.cs-q.is-listening textarea::placeholder { color: var(--red); }
+.cs-q.is-listening textarea::placeholder { color: var(--listen); }
 .cs-q-bar { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 8px; border-top: 1px solid var(--hair); }
 .cs-q-hint { flex: 1; min-width: 0; font-size: 11px; color: var(--ink-3); }
 
@@ -388,9 +409,9 @@ button:disabled { cursor: default; }
 }
 .cs-mic:hover:not(:disabled) { background: var(--wash); }
 .cs-mic:disabled { opacity: 0.38; }
-.cs-mic.is-recording { border-color: var(--red); background: var(--red); color: #fff; animation: cs-pulse 1.2s ease-in-out infinite; }
-.cs-mic.is-recording:hover:not(:disabled) { background: #b02216; }
-@keyframes cs-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(205, 42, 29, 0.45); } 50% { box-shadow: 0 0 0 5px rgba(205, 42, 29, 0); } }
+.cs-mic.is-recording { border-color: var(--listen); background: var(--listen); color: #fff; animation: cs-pulse 1.2s ease-in-out infinite; }
+.cs-mic.is-recording:hover:not(:disabled) { background: #0087c2; }
+@keyframes cs-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgb(var(--listen-rgb) / 0.5); } 50% { box-shadow: 0 0 0 5px rgb(var(--listen-rgb) / 0); } }
 @media (prefers-reduced-motion: reduce) { .cs-mic.is-recording { animation: none; } }
 
 .cs-aloud { display: flex; align-items: center; margin-top: 8px; }
@@ -758,9 +779,8 @@ button:disabled { cursor: default; }
 
 /* Voice meter: shown in the question bar while recording; the bars follow the microphone level. */
 .vm { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-2); }
-.vm.is-hearing { color: var(--red); font-weight: 600; }
+.vm.is-hearing { color: var(--listen); font-weight: 600; }
 .vm-bars { display: inline-flex; align-items: center; gap: 2px; height: 14px; }
 .vm-bars i { display: block; width: 3px; height: 14px; background: var(--ink-3); transform-origin: center; transition: transform 70ms linear; }
-.vm.is-hearing .vm-bars i { background: var(--red); }
-.cs-q.is-hearing, .cs-q.is-hearing:hover, .cs-q.is-hearing:focus-within { box-shadow: 0 0 0 3px rgba(205, 42, 29, 0.4); }
+.vm.is-hearing .vm-bars i { background: var(--listen); }
 @media (prefers-reduced-motion: reduce) { .vm-bars i { transition: none; } }

@@ -242,7 +242,8 @@ function AskCell({ s }: { s: Session }) {
           <label htmlFor="cl-q" className="cs-label">Ask a question</label>
           {d && <span className="cs-q-key"><kbd>/</kbd> to type</span>}
         </div>
-        <div className={`cs-q${listening ? ' is-listening' : ''}${listening && mic.level >= HEARING ? ' is-hearing' : ''}${!d ? ' is-off' : ''}`} onClick={() => box.current?.focus()}>
+        <div className={`cs-q${listening ? ' is-listening' : ''}${listening && mic.level >= HEARING ? ' is-hearing' : ''}${!d ? ' is-off' : ''}`}
+          style={listening ? ({ '--lvl': mic.level } as React.CSSProperties) : undefined} onClick={() => box.current?.focus()}>
           <textarea id="cl-q" ref={box} rows={2} value={text} disabled={!d}
             placeholder={!d ? 'Open a drawing first'
               : listening ? 'Listening… speak your question'
