@@ -103,6 +103,21 @@ def test_auto_disagreement_reports_geometry(root, monkeypatch):
     assert {s.answer for s in a.sources} == {1, 3}
 
 
+def test_gemma_skips_area_on_sheet_without_printed_m2(root, monkeypatch):
+    router._import_model_pkg()  # puts the repo root (and so model/) on sys.path
+    from model import common
+
+    q = "What is the total area of the apartment in m²?"
+    monkeypatch.setattr(router, "run_gemma", _fake_gemma(40.0, confidence=0.999))
+    monkeypatch.setattr(common, "prints_areas", lambda path: False)
+    a = ask(question=q, engine="gemma_base")
+    assert a.status == "cannot_verify" and a.answer is None
+    assert "prints no room areas" in a.explanation
+
+    monkeypatch.setattr(common, "prints_areas", lambda path: True)
+    assert ask(question=q, engine="gemma_base").answer == 40.0
+
+
 def test_gemma_only_engine(root, monkeypatch):
     monkeypatch.setattr(router, "run_gemma", _fake_gemma(4, confidence=0.6))
     a = ask(engine="gemma_base")
