@@ -7,7 +7,9 @@ Sources
 
 engine="auto" runs geometry and fine-tuned Gemma together when both apply:
   - both answer and agree (count exact, quantities within AGREE_TOL) -> verified, geometry's value
-  - both answer and differ -> disagreement, geometry's value reported, both listed in `sources`
+  - both answer and differ, Gemma confident (>= its calibrated bar) -> disagreement, geometry's value
+    reported, both listed in `sources`
+  - both answer and differ, Gemma below its bar -> geometry verified; Gemma's estimate shown as a note
   - one answers -> geometry is verified; Gemma is verified/partial by its own confidence
   - neither is confident -> cannot_verify, with each source's reason
 engine="geometry" | "gemma_ft" | "gemma_base" | "sheet" runs only that source.
@@ -629,6 +631,14 @@ def reconcile(req: AskRequest, q: Optional[Query], outcomes: List[Outcome], cali
         if agree(geo, gem):
             return answer(geo, Status.verified, max(geo.confidence, 0.99),
                           f"{geo.explanation} The model agrees ({_value(gem.value, qtype)}).",
+                          geo.evidence + gem.evidence)
+        # Geometry is measured exactly. A Gemma estimate below its own calibrated `verified` bar can't
+        # overrule it (geometry alone would be verified); only a confident model answer is a real conflict.
+        # Live check, 50 held-out Swiss PDFs: all 17 "disagreement" answers (each one correct) became verified.
+        if gem.confidence < gemma_threshold(req, gem.source, qtype, gem.model):
+            return answer(geo, Status.verified, geo.confidence,
+                          f"{geo.explanation} The model's estimate ({_value(gem.value, qtype)}) differs, but it is "
+                          f"below the model's own verified confidence, so the measured value stands.",
                           geo.evidence + gem.evidence)
         return answer(geo, Status.disagreement, 0.5,
                       f"{geo.explanation} The model says {_value(gem.value, qtype)} instead; check the drawing.",

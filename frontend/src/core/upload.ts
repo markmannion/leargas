@@ -20,7 +20,7 @@ export function useUpload(onUploaded: (drawings: Drawing[]) => void) {
     for (const f of list) {
       if (!/\.(pdf|png|jpe?g|dxf|ifc)$/i.test(f.name)) return setError(`${f.name}: use PDF, PNG, JPEG, DXF or IFC.`)
       if (!f.size) return setError(`${f.name} is empty.`)
-      if (f.size > 25 * 1024 * 1024) return setError(`${f.name} is over 25 MB.`)
+      if (f.size > 60 * 1024 * 1024) return setError(`${f.name} is over 60 MB.`)
     }
     active.current = true
     setBusy(true)

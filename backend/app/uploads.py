@@ -16,7 +16,7 @@ from starlette.concurrency import run_in_threadpool
 from . import drawings
 
 router = APIRouter()
-MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+MAX_UPLOAD_BYTES = 60 * 1024 * 1024  # same as /upload (upload_groups.MAX_BYTES): drawing-set PDFs are often > 25 MB
 ALLOWED_SUFFIXES = {".pdf", ".png", ".jpg", ".jpeg", ".dxf"}
 # Real drawing sheets are big: Stoa's example PNGs are 67 MP (10200 x 6600) and 139 MP (14000 x 9902).
 # The sheet reader reads them at full size, so the limit only guards against absurd files.
@@ -100,7 +100,7 @@ async def upload(request: Request, filename: str = Query(..., min_length=1, max_
     name = (re.sub(r"[^\w .()-]", "_", Path(name).stem).strip(" .") or "Plan")[:120] + suffix
     length = request.headers.get("content-length")
     if length and length.isdigit() and int(length) > MAX_UPLOAD_BYTES:
-        raise HTTPException(413, "Plans must be 25 MB or smaller.")
+        raise HTTPException(413, "Plans must be 60 MB or smaller.")
     identifier = uuid.uuid4().hex
     root = upload_root()
     pending = root / f".pending-{identifier}"
@@ -112,7 +112,7 @@ async def upload(request: Request, filename: str = Query(..., min_length=1, max_
             async for chunk in request.stream():
                 size += len(chunk)
                 if size > MAX_UPLOAD_BYTES:
-                    raise HTTPException(413, "Plans must be 25 MB or smaller.")
+                    raise HTTPException(413, "Plans must be 60 MB or smaller.")
                 output.write(chunk)
         if not size:
             raise HTTPException(400, "The selected file is empty.")

@@ -98,10 +98,19 @@ def test_auto_agreement(root, monkeypatch):
 
 def test_auto_disagreement_reports_geometry(root, monkeypatch):
     monkeypatch.setattr(router, "gemma_available", lambda: True)
-    monkeypatch.setattr(router, "run_gemma", _fake_gemma(3))
+    monkeypatch.setattr(router, "run_gemma", _fake_gemma(3, confidence=0.999))  # a confident model answer
     a = ask()
     assert (a.status, a.answer, a.source) == ("disagreement", 1, "geometry_dxf")
     assert {s.answer for s in a.sources} == {1, 3}
+
+
+def test_unsure_model_does_not_overrule_geometry(root, monkeypatch):
+    monkeypatch.setattr(router, "gemma_available", lambda: True)
+    monkeypatch.setattr(router, "run_gemma", _fake_gemma(3, confidence=0.6))  # below any verified bar
+    a = ask()
+    assert (a.status, a.answer, a.source) == ("verified", 1, "geometry_dxf")
+    assert {s.answer for s in a.sources} == {1, 3}  # the model's estimate is still shown
+    assert "3" in a.explanation
 
 
 def test_gemma_skips_area_on_sheet_without_printed_m2(root, monkeypatch):

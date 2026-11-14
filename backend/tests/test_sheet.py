@@ -63,6 +63,24 @@ def test_printed_value_prefers_exact_row():
     assert r.value == 914 and r.unit == "ft2"
 
 
+def test_printed_value_takes_the_total_row_when_floors_tie():
+    s = _sheet([T("FIRST FLOOR = 48 DORMS", 0, 0, 400, 30), T("SECOND FLOOR = 48 DORMS", 0, 60, 400, 90),
+                T("THIRD FLOOR = 48 DORMS", 0, 120, 400, 150), T("TOTAL = 144 DORMS", 0, 180, 400, 210)])
+    r = A.tool_printed(s, "how many dorms", A._q_kind("how many dorms"))
+    assert r.value == 144 and r.confidence < A.PRINTED_CONF and "TOTAL" in r.explanation
+    r = A.tool_printed(s, "How many dorms on the third floor?", A._q_kind("how many dorms on the third floor"))
+    assert r.value == 48
+
+
+def test_printed_value_synonyms_and_abbreviations():
+    s = _sheet([T("WEST WING DORMITORY =", 0, 0, 400, 30), T("6,095 SF", 580, 0, 730, 30),
+                T("WEST WING CIRCULATION =", 0, 60, 420, 90), T("914 SF", 600, 60, 700, 90),
+                T("MOTOR CONTROL CENTER TRENCH LENGTH = 4275", 0, 120, 700, 150)])
+    assert A.tool_printed(s, "West wing corridor area?", A._q_kind("west wing corridor area")).value == 914
+    r = A.tool_printed(s, "Length of the MCC trench?", A._q_kind("length of the mcc trench"))
+    assert str(r.value).startswith("4275")
+
+
 def test_label_count():
     s = _sheet([T("Group Room", 0, 0, 100, 20), T("Group Room", 300, 0, 400, 20), T("Plant Room", 600, 0, 700, 20)])
     assert A.tool_label_count(s, "How many group rooms are there?").value == 2
