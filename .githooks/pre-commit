@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# Stops commits that would leak secrets (this repo is public) and catches .env lines a shell can't source.
+# Enable once per clone:   git config core.hooksPath .githooks
+# Skip a known-safe line:  put "pragma: allowlist secret" on it.   Skip the hook entirely: git commit --no-verify
+# It never prints a secret, only where it is.
+set -u
+root=$(git rev-parse --show-toplevel) || exit 1
+cd "$root" || exit 1
+tmp=$(mktemp -d) || exit 1
+trap 'rm -rf "$tmp"' EXIT
+fail=0
+err() { echo "pre-commit: $*" >&2; fail=1; }
+
+# 1. Env files are never committed (the .example templates are fine).
+while IFS= read -r -d '' f; do
+  case "$(basename "$f")" in
+    *.example) ;;
+    .env | .env.* | *.env | .bt_env) err "$f is an env file; keep it local (it's gitignored for a reason)." ;;
+  esac
+done < <(git diff --cached --name-only -z --diff-filter=ACMR)
+
+# 2. Env files must be KEY=value, with no space after "=" and no unquoted spaces in the value:
+#    a shell reads "KEY= value" as "run the command value", which prints the value in the error.
+#    Also collect the local secret values so step 3 can look for them verbatim.
+: > "$tmp/values"
+for f in .env .env.example; do
+  [ -f "$f" ] || continue
+  n=0
+  while IFS= read -r line || [ -n "$line" ]; do
+    n=$((n + 1))
+    line=${line%$'\r'}
+    case "$line" in '' | '#'*) continue ;; esac
+    if ! printf '%s\n' "$line" | grep -qE '^(export )?[A-Za-z_][A-Za-z0-9_]*='; then
+      err "$f:$n is not KEY=value (no spaces around '=')."
+      continue
+    fi
+    key=${line%%=*}; key=${key#export }
+    val=${line#*=}
+    case "$val" in
+      [[:space:]]*) err "$f:$n ($key) has a space after '='. Write $key=value." ;;
+      \"*\" | \'*\') ;;
+      *[[:space:]]*) err "$f:$n ($key) has an unquoted space in its value (no comments on a value line)." ;;
+    esac
+    val=$(printf '%s' "$val" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//; s/^["'\'']//; s/["'\'']$//')
+    if [ "$f" = .env ] && printf '%s' "$key" | grep -qE 'KEY|SECRET|TOKEN|PASSWORD' && [ ${#val} -ge 8 ]; then
+      printf '%s\n' "$val" >> "$tmp/values"
+    fi
+  done < "$f"
+done
+
+# 3. Scan only the added lines of the staged diff, as "file:line<TAB>text".
+git diff --cached -U0 --no-color --no-ext-diff | awk '
+  /^\+\+\+ / { file = substr($0, 7); next }
+  /^@@ /     { split($3, a, ","); line = substr(a[1], 2) + 0; next }
+  /^\+/      { print file ":" line "\t" substr($0, 2); line++ }
+' | grep -v 'pragma: allowlist secret' > "$tmp/added"
+
+flag() {  # flag <kind> <grep -E args...>
+  local kind=$1; shift
+  grep "$@" "$tmp/added" | cut -f1 | while IFS= read -r loc; do echo "pre-commit: $loc looks like $kind." >&2; done
+  grep -q "$@" "$tmp/added" && fail=1
+}
+[ -s "$tmp/values" ] && flag "a secret value from your .env" -F -f "$tmp/values"
+flag "an API key (sk_/sk-)"     -E 'sk[_-][A-Za-z0-9_-]{20,}'
+flag "a Hugging Face token"     -E 'hf_[A-Za-z0-9]{30,}'
+flag "a GitHub token"           -E 'gh[pousr]_[A-Za-z0-9]{30,}'
+flag "an AWS access key"        -E 'AKIA[0-9A-Z]{16}'
+flag "a private key"            -E -- '-----BEGIN [A-Z ]*PRIVATE KEY-----'
+flag "a hard-coded secret"      -E '(KEY|SECRET|TOKEN|PASSWORD)[A-Z_]*["'\'']?[[:space:]]*[:=][[:space:]]*["'\'']?[A-Za-z0-9_/+-]{20,}'
+
+# Public IPv4 addresses (box IPs go in infra/verda.local.md, which is gitignored). Private ranges are fine.
+while IFS=$'\t' read -r loc text; do
+  if printf '%s\n' "$text" | grep -oE '(^|[^0-9.])([0-9]{1,3}\.){3}[0-9]{1,3}($|[^0-9.])' | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' |
+     grep -vqE '^(127\.|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|169\.254\.|0\.0\.0\.0$|255\.)'; then
+    err "$loc has a public IP address."
+  fi
+done < "$tmp/added"
+
+if [ "$fail" -ne 0 ]; then
+  echo "pre-commit: commit blocked. Fix the above, or mark a known-safe line with 'pragma: allowlist secret'." >&2
+  exit 1
+fi
+exit 0
