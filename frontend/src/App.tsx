@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from './api'
-import type { Answer, Drawing, Engine, Health } from './types'
+import type { Answer, Drawing, Engine, Health, Region } from './types'
 import { TopBar } from './components/TopBar'
 import { DrawingList } from './components/DrawingList'
 import { SheetViewer } from './components/SheetViewer'
 import { AskPanel } from './components/AskPanel'
 import { AnswerCard } from './components/AnswerCard'
 import { speakableAnswer, useSpeaker, voiceApi } from './voice'
+import './region.css'
 
 const RENDER_NOTE: Record<Drawing['render'], string | null> = {
   image: null,
@@ -26,6 +27,8 @@ export default function App() {
   const [askError, setAskError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [hovered, setHovered] = useState<number | null>(null)
+  const [region, setRegion] = useState<Region | null>(null)
+  const [selectingRegion, setSelectingRegion] = useState(false)
   const inflight = useRef<AbortController | null>(null)
   const [voice, setVoice] = useState(false)
   const { speak, stop: stopSpeech, speaking, error: speechError } = useSpeaker()
@@ -68,12 +71,28 @@ export default function App() {
 
   const select = useCallback((d: Drawing) => {
     inflight.current?.abort()
+    inflight.current = null
     stopSpeech()
+    setBusy(false)
     setSelected(d)
+    setRegion(null)
+    setSelectingRegion(false)
     setAnswer(null)
     setAskError(null)
     setHovered(null)
     history.replaceState(null, '', `#${encodeURIComponent(d.path)}`)
+  }, [stopSpeech])
+
+  const changeRegion = useCallback((next: Region | null) => {
+    inflight.current?.abort()
+    inflight.current = null
+    stopSpeech()
+    setBusy(false)
+    setRegion(next)
+    setSelectingRegion(false)
+    setAnswer(null)
+    setAskError(null)
+    setHovered(null)
   }, [stopSpeech])
 
   const ask = useCallback(
@@ -88,12 +107,13 @@ export default function App() {
       setHovered(null)
       try {
         const ref = selected.questions.find((q) => q.question === question)
-        const a = await api.ask({ path: selected.path, question, type: ref?.type ?? null, engine }, ctrl.signal)
+        const a = await api.ask({ path: selected.path, question, type: ref?.type ?? null, engine, region }, ctrl.signal)
+        if (ctrl.signal.aborted) return
         setAnswer(a)
         // Questions asked by voice get a spoken answer.
         if (spoken && !ctrl.signal.aborted) void speak(speakableAnswer(a))
       } catch (e) {
-        if ((e as Error).name !== 'AbortError') {
+        if (!ctrl.signal.aborted && (e as Error).name !== 'AbortError') {
           setAnswer(null)
           setAskError((e as Error).message)
         }
@@ -101,23 +121,32 @@ export default function App() {
         if (inflight.current === ctrl) setBusy(false)
       }
     },
-    [selected, engine, stopSpeech, speak],
+    [selected, engine, region, stopSpeech, speak],
   )
 
   const reference = useMemo(
-    () => (answer && selected ? selected.questions.find((q) => q.question === answer.question) ?? null : null),
+    () => (answer && selected && !answer.region ? selected.questions.find((q) => q.question === answer.question) ?? null : null),
     [answer, selected],
   )
+
+  const gemmaModel = engine === 'gemma_base' ? 'gemma-base' : 'gemma-ft'
+  const gemmaLabel = engine === 'gemma_base' ? 'Gemma Base' : 'Fine-tuned Gemma'
+  const gemmaState = health?.gemma_status?.models[gemmaModel] ?? health?.gemma_status?.status
 
   return (
     <div className="app">
       <SheetViewer
+        key={selected?.path ?? 'none'}
         src={selected ? api.drawingUrl(selected.path) : null}
         evidence={answer?.evidence ?? []}
         page={0}
         hovered={hovered}
         onHover={setHovered}
         renderNote={selected ? RENDER_NOTE[selected.render] : null}
+        region={region}
+        selectingRegion={selectingRegion}
+        onRegionChange={changeRegion}
+        onSelectionModeChange={setSelectingRegion}
       />
 
       <TopBar
@@ -138,8 +167,24 @@ export default function App() {
       />
 
       <aside className="inspector glass">
-        <AskPanel key={selected?.path ?? 'none'} drawing={selected} busy={busy} onAsk={ask} voice={voice}>
+        <AskPanel
+          key={selected?.path ?? 'none'} drawing={selected} busy={busy} onAsk={ask} voice={voice}
+          region={region} selectingRegion={selectingRegion}
+          onSelectRegion={() => setSelectingRegion((active) => !active)}
+          onClearRegion={() => changeRegion(null)}
+        >
           <div className="result">
+            {!healthError && health?.mode === 'live' && gemmaState && gemmaState !== 'available' && (
+              <p className="model-notice" role="status">
+                {gemmaState === 'checking'
+                  ? 'Checking Gemma availability.'
+                  : gemmaState === 'unconfigured'
+                    ? 'Gemma is not connected.'
+                    : `${gemmaLabel} is temporarily offline.`}{' '}
+                Geometry and cached answers remain available.
+                {gemmaState !== 'unconfigured' && ' Reconnecting automatically.'}
+              </p>
+            )}
             {askError && (
               <div className="ask-error">
                 <strong>Request failed.</strong> {askError}

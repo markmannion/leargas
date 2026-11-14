@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from app import main
+from app import main, drawings
 from app.schema import Answer
 
 
@@ -40,6 +40,29 @@ def test_ask_unknown_is_cannot_verify(client):
 
 def test_schema_endpoint(client):
     assert "properties" in client.get("/schema").json()["answer"]
+
+
+@pytest.mark.parametrize("bbox", [[.5, .1, .4, .8], [.1, .1, .1, .8], [-.1, 0, .5, .5], [0, 0, 1.1, 1]])
+def test_region_rejects_invalid_bounds(client, bbox):
+    response = client.post("/ask", json={"path": "data/cubicasa5k/x.png", "question": "How many windows?",
+                                         "region": {"bbox": bbox}})
+    assert response.status_code == 422
+
+
+def test_region_mock_does_not_reuse_whole_sheet_gold(client):
+    response = client.post("/ask", json={"path": "data/cubicasa5k/x.png", "question": "How many windows?",
+                                         "region": {"bbox": [.1, .1, .5, .5]}})
+    assert response.json()["answer"] is None
+    assert response.json()["region"]["bbox"] == [.1, .1, .5, .5]
+
+
+def test_drawing_catalogue_pagination_reaches_last_plan(client, monkeypatch):
+    catalogue = [{"path": f"data/plan-{index}.png"} for index in range(7)]
+    monkeypatch.setattr(drawings, "_catalogue", lambda: catalogue)
+    result = client.get("/drawings?limit=3&offset=6").json()
+    assert result["total"] == 7 and result["drawings"] == [catalogue[-1]]
+    assert client.get("/drawings?offset=7").json()["drawings"] == []
+    assert client.get("/drawings?offset=-1").status_code == 422
 
 
 def _base(**kw):

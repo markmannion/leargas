@@ -169,6 +169,6 @@ def _catalogue() -> List[dict]:
 
 
 @router.get("/drawings")
-def drawings(limit: int = Query(300, ge=1, le=5000)) -> dict:
+def drawings(limit: int = Query(300, ge=1, le=5000), offset: int = Query(0, ge=0)) -> dict:
     cat = _catalogue()
-    return {"total": len(cat), "drawings": cat[:limit]}
+    return {"total": len(cat), "drawings": cat[offset:offset + limit]}
