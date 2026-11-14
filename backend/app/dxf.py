@@ -36,7 +36,8 @@ COMMERCIAL = re.compile(r"^Gewerbe\s+\d+$", re.I)
 OUTDOOR = {"balkon", "balcon", "balcone", "loggia", "terrasse", "terrazza",
            "terrace", "aussenraum", "espace extérieur", "spazio esterno",
            "sitzplatz", "garten", "patio", "wintergarten", "jardin d'hiver",
-           "giardino d'inverno"}
+           "giardino d'inverno", "arkade", "arcade", "arcades", "portico", "porticato",
+           "laubengang", "coursive", "ballatoio", "pergola", "vordach"}
 KINDS = {"room", "unit", "window", "door", "fixture", "toilet", "washbasin",
          "bathtub", "shower", "washing_machine", "kitchen", "stairs", "unknown_fixture"}
 REQUIRED_LAYERS = {"ROOM_OUTLINE", "UNIT_OUTLINE", "ROOM_TEXT", "WINDOW", "DOOR", "FIXTURE"}
@@ -49,6 +50,8 @@ class Item:
     layer: str
     points: list[tuple[float, float]]
     component_handles: list[str] = field(default_factory=list)
+    # Fixture outlines: the strokes inside, e.g. {"P48": 1, "C": 1} (P<n> = n-point polyline, C = circle).
+    strokes: dict[str, int] = field(default_factory=dict)
     room_id: str | None = None
     label: str | None = None
     printed_area_m2: float | None = None
@@ -118,7 +121,7 @@ class Drawing:
             raise CannotVerify("Unlabelled unit fragments could belong to the requested apartment.")
         if query.kind in {"fixture", "toilet", "washbasin", "bathtub", "shower",
                           "washing_machine", "kitchen", "stairs"} and any(
-            i.kind == "unknown_fixture" for i in self.items
+            i.kind == "unknown_fixture" and _could_be(i, query.kind) for i in self.items
         ):
             raise CannotVerify("Unclassified fixture symbols could affect this count.")
         # Incomplete room labels must not silently become zero counts or smaller sums.
@@ -164,6 +167,20 @@ class Drawing:
                  "room areas in metres (printed m² where available, otherwise CAD polygons)"
                  if query.area_source == "auto" else "CAD room polygon areas in metres")
         return Result(round(math.fsum(values), 2), "m2", [i.id for i in selected], f"Summed {basis}.")
+
+
+# The stroke each recognised symbol is drawn around: tub bowl, WC/basin oval, shower tray.
+# An unclassified outline only blocks a count when it contains that stroke (it may be several
+# fixtures merged into one outline). Unresolved strokes outside any outline block everything.
+HALLMARK = {"bathtub": "P69", "toilet": "P48", "washbasin": "P48", "shower": "P5"}
+
+
+def _could_be(item: Item, kind: str) -> bool:
+    if item.id == "unresolved-fixtures" or kind not in HALLMARK:
+        return True
+    if kind in ("bathtub", "shower") and item.strokes == {"C": 1}:
+        return True  # a bare drain: some exports draw small tubs / trays this way
+    return item.strokes.get(HALLMARK[kind], 0) > 0
 
 
 def _points(entity) -> list[tuple[float, float]]:
@@ -281,6 +298,7 @@ def parse_dxf(path: str | Path) -> Drawing:
                            for u in units], key=lambda pair: pair[0], reverse=True)
         if overlaps and overlaps[0][0] > 0.5 and (len(overlaps) == 1 or overlaps[1][0] < 0.1):
             room.unit_id = overlaps[0][1].unit_id
+    _enclosed_rooms_indoor(rooms)
     for layer, kind in [("WINDOW", "window"), ("DOOR", "door")]:
         for entity in by_layer[layer]:
             poly = _polygon(entity, explicit_close=True)
@@ -294,6 +312,31 @@ def parse_dxf(path: str | Path) -> Drawing:
                 raise CannotVerify(f"Unsupported {layer} symbol: {entity.dxf.handle}.")
     _fixtures(by_layer["FIXTURE"], drawing)
     return drawing
+
+
+ENCLOSED = 0.97  # share of perimeter that must border other rooms (within a wall's width)
+WALL = 0.6
+
+
+def _enclosed_rooms_indoor(rooms: list[Item]) -> None:
+    """Numbered rooms without a name are indoor when other rooms surround them on (nearly) every side.
+
+    Balconies, loggias and terraces sit on the facade, so much of their outline borders no room.
+    Anything less enclosed stays unclassified and indoor-only queries keep refusing.
+    """
+    todo = [r for r in rooms if r.room_id and r.indoor is None]
+    if not todo:
+        return
+    for r in todo:
+        others = [o.polygon for o in rooms if o is not r
+                  and not r.polygon.buffer(1e-6).covers(o.polygon)
+                  and not o.polygon.buffer(1e-6).covers(r.polygon)]
+        if not others:
+            continue
+        ring = r.polygon.exterior
+        near = ring.intersection(unary_union(others).buffer(WALL)).length
+        if near / ring.length >= ENCLOSED:
+            r.indoor = True
 
 
 def _fixtures(entities: list, drawing: Drawing) -> None:
@@ -342,6 +385,7 @@ def _fixtures(entities: list, drawing: Drawing) -> None:
             kind = "stairs"
         item = _item(entity, kind, poly)
         item.component_handles += [c.dxf.handle for c in components]
+        item.strokes = dict(Counter("C" if c.dxftype() == "CIRCLE" else f"P{len(c)}" for c in components))
         drawing.items.append(item)
         consumed.update(item.component_handles)
     leftovers = [e.dxf.handle for e in entities if e.dxf.handle not in consumed]
