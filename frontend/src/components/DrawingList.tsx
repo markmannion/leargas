@@ -14,6 +14,7 @@ interface Props {
 
 const RENDER_LABEL: Record<Drawing['render'], string> = { image: 'IMG', pdf: 'PDF', dxf: 'DXF', none: 'IFC' }
 const UPLOAD_ACCEPT = '.png,.jpg,.jpeg,.pdf,.dxf,.ifc'
+const PER_GROUP = 150
 
 export function DrawingList({ drawings, total, selected, error, onSelect, onUpload, uploading, uploadError }: Props) {
   const [q, setQ] = useState('')
@@ -22,15 +23,16 @@ export function DrawingList({ drawings, total, selected, error, onSelect, onUplo
     return t ? drawings.filter((d) => d.path.toLowerCase().includes(t)) : drawings
   }, [drawings, q])
 
-  // Group by collection, keep order.
+  // Group by collection, keep order. Capped per collection, so cubicasa5k's ~4,800 sheets can't
+  // push swiss / IFC drawings out of the list.
   const groups = useMemo(() => {
     const m = new Map<string, Drawing[]>()
-    for (const d of filtered.slice(0, 400)) {
+    for (const d of filtered) {
       const g = m.get(d.collection) ?? []
       g.push(d)
       m.set(d.collection, g)
     }
-    return [...m.entries()]
+    return [...m.entries()].map(([c, items]) => [c, items.slice(0, PER_GROUP), items.length] as const)
   }, [filtered])
 
   return (
@@ -69,7 +71,7 @@ export function DrawingList({ drawings, total, selected, error, onSelect, onUplo
         {!error && drawings.length > 0 && filtered.length === 0 && (
           <p className="register-msg muted">No drawings match “{q}”.</p>
         )}
-        {groups.map(([collection, items]) => (
+        {groups.map(([collection, items, count]) => (
           <div key={collection} className="register-group">
             <div className="group-label">{collection.replace(/_/g, ' ')}</div>
             <ul>
@@ -102,11 +104,13 @@ export function DrawingList({ drawings, total, selected, error, onSelect, onUplo
                 </li>
               ))}
             </ul>
+            {count > items.length && (
+              <p className="register-msg muted small">
+                Showing {items.length} of {count.toLocaleString()}. Search to narrow.
+              </p>
+            )}
           </div>
         ))}
-        {filtered.length > 400 && (
-          <p className="register-msg muted small">Showing 400 of {filtered.length}. Narrow the filter.</p>
-        )}
       </div>
     </aside>
   )

@@ -20,6 +20,7 @@ from typing import Dict, Tuple
 
 from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from . import demo_cache
 from . import router as qa_router
@@ -47,6 +48,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# The full /drawings catalogue (every question included) is ~16 MB of JSON, ~10x smaller gzipped.
+app.add_middleware(GZipMiddleware, minimum_size=4096)
 app.include_router(drawings_router)
 app.include_router(voice_router)
 app.include_router(uploads_router)

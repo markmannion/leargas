@@ -170,7 +170,7 @@ def _catalogue() -> List[dict]:
 
 
 @router.get("/drawings")
-def drawings(limit: int = Query(300, ge=1, le=5000)) -> dict:
+def drawings(limit: int = Query(300, ge=1, le=20000)) -> dict:
     from .uploads import uploaded  # not cached: uploads change while the server runs
 
     cat = uploaded() + _catalogue()

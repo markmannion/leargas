@@ -21,7 +21,8 @@ async function json<T>(res: Response): Promise<T> {
 export const api = {
   health: () => fetch(`${API_BASE}/health`).then((r) => json<Health>(r)),
 
-  drawings: (limit = 2000) =>
+  // All of them: a lower cap cut off every collection after cubicasa5k (paths are sorted).
+  drawings: (limit = 20000) =>
     fetch(`${API_BASE}/drawings?limit=${limit}`).then((r) => json<{ total: number; drawings: Drawing[] }>(r)),
 
   ask: (req: AskRequest, signal?: AbortSignal) =>
