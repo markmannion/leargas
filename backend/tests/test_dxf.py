@@ -156,9 +156,25 @@ def test_unknown_fixture_prevents_partial_count(cad):
     _, space, _ = cad
     rectangle(space, "FIXTURE", 10, 10, .4, .4)
     drawing = save_parse(cad)
-    for kind in ("toilet", "fixture", "washing_machine"):
+    for kind in ("fixture", "washing_machine"):
         with pytest.raises(CannotVerify, match="Unclassified"):
             drawing.query(Query("count", kind))
+    # An empty outline has no WC oval, so it can't hide a toilet.
+    assert drawing.query(Query("count", "toilet")).value == 0
+
+
+def test_unknown_outline_with_hallmark_blocks_that_kind(cad):
+    _, space, _ = cad
+    rectangle(space, "FIXTURE", 10, 10, 1, 1)
+    oval = [(10.5 + .3 * math.cos(2 * math.pi * k / 47), 10.5 + .2 * math.sin(2 * math.pi * k / 47)) for k in range(48)]
+    space.add_lwpolyline(oval, dxfattribs={"layer": "FIXTURE"})  # 48-point WC/basin oval...
+    for y in (10.1, 10.2, 10.3):  # ...merged with strokes no known symbol has
+        space.add_lwpolyline([(10.1, y), (10.9, y)], dxfattribs={"layer": "FIXTURE"})
+    drawing = save_parse(cad)
+    for kind in ("toilet", "washbasin"):
+        with pytest.raises(CannotVerify, match="Unclassified"):
+            drawing.query(Query("count", kind))
+    assert drawing.query(Query("count", "bathtub")).value == 0
 
 
 def test_shower_tray_and_washing_machine_are_distinct(cad):
