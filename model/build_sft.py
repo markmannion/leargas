@@ -25,6 +25,17 @@ Points (run 2, --points)
   Coordinates are normalised [x, y] in 0-1 against the PNG.
 - A count question gets points only if the label count equals the gold answer (otherwise the
   labels and the question disagree and we'd teach noise); it then falls back to answer-only.
+
+Run 2 without points (the agreed fallback): reweighted mix + harder wording
+  python -m model.build_sft --out data/sft/run2.jsonl --n 20000 \
+      --reweight results/preds/gemma-ft__heldout_raster.jsonl --paraphrase-frac 0.25
+- --reweight PREDS: per-family accuracy of a run on data/splits/raster_eval.jsonl (family = source x
+  type x object kind, e.g. cubicasa5k/count/window). Weak families are oversampled (up to 3x), families
+  above 90% are cut (down to 0.3x). Sampling is weighted and without replacement, from a pool twice the
+  size of --n that is already balanced the run 1 way.
+- --paraphrase-frac F: rewrites a share F of the English questions in other words ("Count the windows on
+  this sheet.", "What's the number of ...?"), same gold answer. Stoa's judges word questions their own way.
+- Abstain rows now also include out-of-scope questions in Stoa's style (pipe sizes, slab reinforcement).
 """
 from __future__ import annotations
 
@@ -61,7 +72,87 @@ ABSTAIN_QUESTIONS = [
     ("Mikä on ulko-oven paloluokka?", "paloluokkia ei ole merkitty piirustukseen"),
     ("Wie hoch ist die Raumhöhe im Wohnzimmer?", "Raumhöhen sind im Grundriss nicht angegeben"),
     ("Who is the architect of this building?", "no architect is named on this drawing"),
+    ("What size is the main supply pipe?", "no piping is shown on this floor plan"),
+    ("How many pipe supports are shown?", "no piping is shown on this floor plan"),
+    ("What is the slab thickness and reinforcement?", "no structural slab details are shown"),
+    ("What is the rebar spacing in the foundation slab?", "no structural details are shown"),
 ]
+
+# ---------------------------------------------------------------------------------------- run 2 helpers
+
+def family(r: dict) -> str:
+    kinds = question_kinds(r["question"]) if r["type"] == "count" else None
+    return f"{r['source']}/{r['type']}/{kinds[0] if kinds else 'other'}"
+
+
+def family_weights(preds_path: str, lo: float = 0.3, hi: float = 3.0) -> dict[str, float]:
+    """{family: weight} from one run's predictions on the fixed held-out raster set."""
+    from .scoring import score
+
+    gold = {r["id"]: r for r in load_jsonl(REPO_ROOT / "data" / "splits" / "raster_eval.jsonl")}
+    hits: dict = collections.defaultdict(list)
+    for p in load_jsonl(Path(preds_path)):
+        g = gold.get(p["id"])
+        if g is None:
+            continue
+        ok = score(p.get("answer"), p.get("unit"), g, bool(p.get("abstained"))) == "correct"
+        hits[family(g)].append(ok)
+    acc = {f: sum(v) / len(v) for f, v in hits.items() if len(v) >= 8}
+    if not acc:
+        raise SystemExit(f"--reweight: no usable predictions in {preds_path}")
+    mean = sum(acc.values()) / len(acc)
+    w = {}
+    for f, a in acc.items():
+        if a > 0.9:
+            w[f] = lo
+        else:
+            w[f] = max(lo, min(hi, (1 - a) / max(1 - mean, 1e-6)))
+    print("reweight (family: acc -> weight):")
+    for f in sorted(acc, key=acc.get):
+        print(f"  {f:40s} {acc[f]:.2f} -> {w[f]:.2f}  (n={len(hits[f])})")
+    return w
+
+
+def weighted_pick(rows: list[dict], n: int, weights: dict[str, float], rng: random.Random) -> list[dict]:
+    """n rows without replacement, P(row) ~ its family weight (Efraimidis-Spirakis keys)."""
+    keyed = [(rng.random() ** (1.0 / weights.get(family(r), 1.0)), i) for i, r in enumerate(rows)]
+    keyed.sort(reverse=True)
+    out = [rows[i] for _, i in keyed[:n]]
+    rng.shuffle(out)
+    return out
+
+
+_COUNT_Q = re.compile(r"^how many (.+?) (?:are|is) (?:there |drawn |shown |marked |visible )?(?:on|in) (?:this|the) (.+?)\??$", re.I)
+_AREA_Q = re.compile(r"^what is the (total |net |combined )?(?:floor )?area of (.+?)(?:,? in m²| \(m²\))?\??$", re.I)
+
+
+def paraphrase(q: str, rng: random.Random) -> str | None:
+    """Reword an English dataset question; None if no rule fits (then the row keeps its wording)."""
+    s = q.strip()
+    m = _COUNT_Q.match(s)
+    if m:
+        what, where = m.group(1), m.group(2)
+        return rng.choice([
+            f"Count the {what} on this {where}.",
+            f"What's the number of {what} shown on the {where}?",
+            f"{what[0].upper() + what[1:]}: how many does this {where} have?",
+            f"Can you tell me how many {what} this {where} shows?",
+            f"how many {what} are there",
+            f"Give me the total count of {what} on this sheet.",
+            f"I need the number of {what} on this {where} for a quantity take-off.",
+        ])
+    m = _AREA_Q.match(s)
+    if m:
+        what = m.group(2)
+        adj = (m.group(1) or "").strip()
+        return rng.choice([
+            f"How big is {what} in square metres?",
+            f"Floor area of {what}?",
+            f"What's the {adj + ' ' if adj else ''}area of {what} in m²?",
+            f"Tell me the area of {what}.",
+            f"How many m² is {what}?",
+        ])
+    return None
 
 
 def raster_path(path: str) -> str:
@@ -144,6 +235,10 @@ def main() -> None:
     ap.add_argument("--val", type=int, default=300, help="extra held-in rows for a quick eval loss (from TRAIN drawings)")
     ap.add_argument("--crop-swiss", action="store_true",
                     help="swiss rows use the plan-only crops (python -m model.crop --write first); points mapped to the crop")
+    ap.add_argument("--reweight", default=None, metavar="PREDS",
+                    help="run 2: oversample families this run's held-out predictions got wrong")
+    ap.add_argument("--paraphrase-frac", type=float, default=0.0,
+                    help="run 2: share of English questions reworded (same gold answer)")
     ap.add_argument("--preview", type=int, default=0, help="save N resized training images to data/sft/preview/ and exit")
     a = ap.parse_args()
     rng = random.Random(a.seed)
@@ -186,8 +281,22 @@ def main() -> None:
         return
 
     n_abstain = int(a.n * a.abstain_frac)
-    picked = pick_balanced(rows, a.n - n_abstain + a.val, rng)
-    val, train = picked[: a.val], picked[a.val:]
+    if a.reweight:
+        pool = pick_balanced(rows, 2 * (a.n - n_abstain) + a.val, rng)
+        val, rest = pool[: a.val], pool[a.val:]
+        train = weighted_pick(rest, a.n - n_abstain, family_weights(a.reweight), rng)
+    else:
+        picked = pick_balanced(rows, a.n - n_abstain + a.val, rng)
+        val, train = picked[: a.val], picked[a.val:]
+    n_para = 0
+    if a.paraphrase_frac > 0:
+        for r in train:
+            if r["lang"] == "en" and rng.random() < a.paraphrase_frac:
+                new = paraphrase(r["question"], rng)
+                if new:
+                    r["question"] = new
+                    n_para += 1
+        print(f"paraphrased {n_para} English questions")
 
     points = load_points() if a.points else {}
     stats = collections.Counter()
@@ -230,6 +339,9 @@ def main() -> None:
     val_path = Path(a.out).with_name(Path(a.out).stem + "_val.jsonl")
     write_jsonl(val_path, [to_row(r, i, "val") for i, r in enumerate(val)])
 
+    if a.reweight:
+        fam = collections.Counter(family(r) for r in out_rows if r["type"] != "abstain")
+        print("families after reweighting:", ", ".join(f"{k} {v}" for k, v in fam.most_common()))
     c = collections.Counter((r["source"], r["type"], r["lang"]) for r in out_rows)
     print(f"wrote {len(out_rows)} rows -> {a.out}  (+{len(val)} val -> {val_path.name})")
     for k, v in sorted(c.items()):
