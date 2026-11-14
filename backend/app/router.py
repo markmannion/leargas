@@ -12,8 +12,8 @@ engine="auto" runs geometry and fine-tuned Gemma together when both apply:
   - neither is confident -> cannot_verify, with each source's reason
 engine="geometry" | "gemma_ft" | "gemma_base" runs only that source.
 
-Evidence: DXF items become polygons normalized to the rendered DXF sheet (`/drawing` serves that
-render when there is no local PDF/PNG). Gemma's points are already normalized to its input image.
+Evidence: DXF items become polygons normalized to the sheet `/drawing` serves: the PNG twin / PDF
+page via app.register (none if the fit is not confident), or the rendered DXF stand-in sheet. Gemma's points are already normalized to its input image.
 IFC answers carry no image evidence yet.
 """
 
@@ -114,14 +114,27 @@ def _dxf_drawing(dxf: str):
 
 
 def _dxf_evidence(rel: str, dxf: Path, drawing, item_ids: List[str]) -> List[Evidence]:
-    if drawings.render_kind(rel) != "dxf":
-        return []  # the sheet shown is a PDF/PNG; aligning DXF onto it is not done yet
-    fr = drawings.dxf_frame(dxf)
-    (x0, y0), (x1, y1), m = fr["extmin"], fr["extmax"], fr["margin"]
-    w, h = (x1 - x0) + 2 * m, (y1 - y0) + 2 * m
+    kind = drawings.render_kind(rel)
+    if kind == "dxf":
+        fr = drawings.dxf_frame(dxf)
+        (x0, y0), (x1, y1), m = fr["extmin"], fr["extmax"], fr["margin"]
+        w, h = (x1 - x0) + 2 * m, (y1 - y0) + 2 * m
 
-    def norm(x: float, y: float):
-        return (min(max((x - x0 + m) / w, 0.0), 1.0), min(max((y1 - y + m) / h, 0.0), 1.0))
+        def norm(x: float, y: float):
+            return (min(max((x - x0 + m) / w, 0.0), 1.0), min(max((y1 - y + m) / h, 0.0), 1.0))
+    elif kind in ("image", "pdf"):
+        # The served sheet is the PNG twin or the PDF page (same framing): register DXF onto it.
+        from .register import dxf_to_image
+
+        t = dxf_to_image(_abs(rel))
+        if t is None:
+            return []  # no confident fit: no evidence beats misplaced evidence
+
+        def norm(x: float, y: float):
+            u, v = t(x, y)
+            return (min(max(u, 0.0), 1.0), min(max(v, 0.0), 1.0))
+    else:
+        return []
 
     by_id = {i.id: i for i in drawing.items}
     out = []

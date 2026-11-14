@@ -22,6 +22,8 @@ export function AnswerCard({ answer, reference, hovered, onHover, speech }: Prop
   const cv = answer.status === 'cannot_verify'
   const match = reference ? matchesReference(answer.answer, answer.unit, reference) : null
   const pct = Math.round(answer.confidence * 100)
+  // Free-text answers can be a sentence; the big numeric style would fill the panel.
+  const longText = typeof answer.answer === 'string' && answer.answer.length > 12
 
   return (
     <section className={`answer status-${answer.status}`} aria-live="polite">
@@ -49,7 +51,7 @@ export function AnswerCard({ answer, reference, hovered, onHover, speech }: Prop
         </span>
       </header>
 
-      <div className={`answer-value${cv ? ' is-empty' : ''}`}>
+      <div className={`answer-value${cv ? ' is-empty' : ''}${longText ? ' is-text' : ''}`}>
         {cv ? (
           <>
             <span className="value-big">—</span>

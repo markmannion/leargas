@@ -5,7 +5,14 @@ export const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ??
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
-    const body = await res.text().catch(() => '')
+    let body = await res.text().catch(() => '')
+    // FastAPI errors are {"detail": "..."}; show the message, not the raw JSON.
+    try {
+      const d = (JSON.parse(body) as { detail?: unknown }).detail
+      if (d !== undefined) body = typeof d === 'string' ? d : JSON.stringify(d)
+    } catch {
+      /* not JSON */
+    }
     throw new Error(`${res.status} ${res.statusText}${body ? ` — ${body.slice(0, 200)}` : ''}`)
   }
   return res.json() as Promise<T>
