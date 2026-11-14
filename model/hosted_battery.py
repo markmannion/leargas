@@ -138,14 +138,15 @@ def _ask(base: str, path: str, question: str) -> dict:
     return d
 
 
-def _stoa_ok(ans, gold: float, tol: float = 0.02) -> bool:
+def _stoa_ok(ans, gold: float, tol: float = 0.02, area: bool = False) -> bool:
     import re  # noqa: PLC0415
     m = re.search(r"-?\d[\d,]*\.?\d*", str(ans)) if ans is not None else None  # 16" / "26,562 SF"
     if not m:
         return False
     v = float(m.group().replace(",", ""))
     # unit slips (m vs mm, SF vs m2) are not the point here: accept the value in any common scale
-    return any(abs(v * k - gold) <= tol * abs(gold) for k in (1, 1000, 0.001, 304.8, 10.7639, 1 / 10.7639))
+    scales = (1, 1000, 0.001, 304.8) + ((10.7639, 1 / 10.7639) if area else ())  # SF <-> m2 only for areas
+    return any(abs(v * k - gold) <= tol * abs(gold) for k in scales)
 
 
 def run(a) -> None:
@@ -164,7 +165,7 @@ def run(a) -> None:
         m, q = job
         d = _ask(a.base, m["path"], q["question"])
         if m["part"] == "B":
-            ok = _stoa_ok(d.get("answer"), q["answer"])
+            ok = _stoa_ok(d.get("answer"), q["answer"], area=q["unit"] in ("ft2", "m2"))
         else:
             gold = {**q, "expected": q.get("expected")}
             ok = score(d.get("answer"), d.get("unit"), gold, abstained=d.get("status") == "cannot_verify") == "correct"
