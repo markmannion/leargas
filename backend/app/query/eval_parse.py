@@ -15,7 +15,7 @@ import json
 import os
 from collections import Counter, defaultdict
 
-from .parser import parse
+from .parser import parse, templates
 
 MEASURED = {"count", "area", "length", "volume"}
 
@@ -48,7 +48,9 @@ def main() -> None:
         if typ == "text":
             by["all"]["text_parsed"] += 1
 
-        is_translation = prev and prev[0]["path"] == r["path"] and prev[0]["answer"] == r["answer"] and res.template != prev[2]
+        entry = templates().get(res.template)
+        is_translation = bool(entry and entry["perm"] is not None and prev
+                              and prev[0]["path"] == r["path"] and prev[0]["answer"] == r["answer"])
         if is_translation and q != prev[1]:
             fails["translation_mismatch"].append(f"{r['question']}\n      got {q.model_dump(exclude_defaults=True)}\n      en  {prev[1].model_dump(exclude_defaults=True)}")
         if not is_translation:
