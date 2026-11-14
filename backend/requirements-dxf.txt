@@ -1,0 +1,4 @@
+-r requirements.txt
+ezdxf>=1.4,<2
+shapely>=2,<3
+pillow>=10
