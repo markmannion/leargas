@@ -9,10 +9,11 @@ import { useViewport } from '../../core/viewport'
 import { collectionName, drawingName, FORMAT_LABEL, suggestionsFor, vectorTwins } from '../../core/catalogue'
 import { explain, itemised, rejectedGuess, valueParts, value } from '../../core/explain'
 import { evidenceZone, shapeCentre, zoneOf } from '../../core/shapes'
-import { OpeningTable, RoomTable, SlabTable, SourceTable } from '../../core/breakdowns'
+import { OpeningTable, RoomTable, SlabTable } from '../../core/breakdowns'
 import { speakableAnswer, useVoiceInput } from '../../voice'
 import { ClarSheet } from './ClarSheet'
 import { ClarRegister } from './ClarRegister'
+import { CrossCheck } from './CrossCheck'
 
 const ENGINES: { id: Engine; label: string }[] = [
   { id: 'auto', label: 'Automatic' },
@@ -265,9 +266,11 @@ function AnswerCell({ s, answer: a, aspect, showMarks, setShowMarks, onPick }: {
         )}
       </div>
       <p className="ca-q">{a.question}</p>
+      <CrossCheck answer={a} engine={s.engine} gemma={s.gemmaState} />
 
       <div className="ca-row">
         <p className={`ca-value${longText ? ' is-text' : ''}`}>
+          <span className="cs-label ca-result">Result</span>
           {cv ? <span className="ca-num">—</span> : <><span className="ca-num">{num}</span>{unit && <span className="ca-unit">{unit}</span>}</>}
         </p>
         <div className="ca-status">
@@ -279,7 +282,6 @@ function AnswerCell({ s, answer: a, aspect, showMarks, setShowMarks, onPick }: {
       <ol className="ca-notes">{notes.map((n, i) => <li key={i}>{n}</li>)}</ol>
       {a.explanation && <p className="ca-expl">{a.explanation}</p>}
 
-      <SourceTable answer={a} />
       <RoomTable {...linked} />
       <SlabTable {...linked} />
       <OpeningTable {...linked} />
@@ -306,7 +308,7 @@ function AnswerCell({ s, answer: a, aspect, showMarks, setShowMarks, onPick }: {
         <label className="ca-toggle">
           <input type="checkbox" checked={showMarks} onChange={(e) => setShowMarks(e.target.checked)} />
           Show the {a.evidence.length} {a.evidence.length === 1 ? 'mark' : 'marks'} on the sheet
-          <span className="ca-key" aria-hidden="true"><i className="k-geo" />measured <i className="k-est" />estimated <i className="k-read" />read</span>
+          <span className="ca-key" aria-hidden="true"><i className="k-geo" />measured <i className="k-read" />read <i className="k-est" />Gemma</span>
         </label>
       )}
     </article>

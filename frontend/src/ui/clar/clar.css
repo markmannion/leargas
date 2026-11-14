@@ -8,6 +8,8 @@
  *    for the item in focus and for clouded regions. Black ink for everything else.
  *  - Line style carries the source, as linetypes do on a drawing: solid measured, dashed estimated,
  *    dotted read from text.
+ *  - Two pencil colours carry which check it came from: blue for measured (CAD geometry, IFC,
+ *    sheet text), violet for Gemma. Used on the cross-check lanes and the marks on the sheet.
  * Paper is white, so this layout has no dark variant.
  */
 
@@ -22,6 +24,11 @@
   --hl: #ffdf3a;
   --hl-tint: #fff3ad;
   --red: #cd2a1d;
+  /* The two independent checks, as two coloured pencils: blue measures, violet is Gemma. */
+  --measure: #1f5fc8;
+  --measure-tint: #e9f0fc;
+  --model: #8b3fb5;
+  --model-tint: #f4ebf9;
   --strip: 404px;
   --font: 'Archivo Variable', 'Arial Narrow', Arial, sans-serif;
   color-scheme: light;
@@ -107,7 +114,13 @@ button:disabled { cursor: default; }
 .cl-outside { fill: rgba(255, 255, 255, 0.62); pointer-events: none; }
 .cl-cloud { fill: none; stroke: var(--red); stroke-linejoin: round; pointer-events: none; }
 
-.cl-mark path, .cl-mark circle { fill: transparent; stroke: var(--ink); }
+.cl-mark path, .cl-mark circle { fill: transparent; stroke: var(--measure); }
+.cl-mark.m-est path, .cl-mark.m-est circle { stroke: var(--model); }
+.cl-mark .cl-tag { stroke: var(--measure); }
+.cl-mark.m-est .cl-tag { stroke: var(--model); }
+.cl-mark .cl-tag-t { fill: var(--measure); }
+.cl-mark.m-est .cl-tag-t { fill: var(--model); }
+.cl-mark.is-on .cl-tag-t { fill: #fff; }
 .cl-mark.is-on path, .cl-mark.is-on circle { stroke: var(--red); }
 .cl-mark.is-dim { opacity: 0.3; }
 .cl-tag { fill: #fff; stroke: var(--ink); }
@@ -396,8 +409,69 @@ button:disabled { cursor: default; }
 .ca-toggle input { margin: 0; accent-color: var(--ink); }
 .ca-key { display: flex; align-items: center; margin-left: auto; color: var(--ink-3); font-size: 10.5px; }
 .ca-key i { display: inline-block; width: 16px; margin: 0 4px 0 9px; border-top: 1.5px solid var(--ink-2); }
-.ca-key .k-est { border-top-style: dashed; }
+.ca-key i { border-top-color: var(--measure); }
+.ca-key .k-est { border-top-style: dashed; border-top-color: var(--model); }
 .ca-key .k-read { border-top-style: dotted; border-top-width: 2px; }
+
+/* Cross-check: the two checks side by side, with the verdict between them. */
+.cx {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 84px minmax(0, 1fr);
+  margin: 4px 0 12px;
+  border: 1.5px solid var(--ink);
+}
+.cx-lane { position: relative; display: flex; flex-direction: column; min-width: 0; padding: 7px 9px 8px; border-top: 4px solid; }
+.cx-lane.is-measure { border-top-color: var(--measure); background: var(--measure-tint); }
+.cx-lane.is-model { border-top-color: var(--model); background: var(--model-tint); text-align: right; }
+.cx-lane.is-off { background: repeating-linear-gradient(45deg, var(--paper) 0 5px, var(--wash) 5px 6px); }
+.cx-who {
+  font-size: 11px;
+  font-weight: 700;
+  font-stretch: 78%;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.is-measure .cx-who { color: var(--measure); }
+.is-model .cx-who { color: var(--model); }
+.cx-how { font-size: 10.5px; color: var(--ink-2); }
+.cx-val { margin-top: 6px; font-size: 26px; font-weight: 580; font-stretch: 66%; line-height: 1; overflow-wrap: anywhere; }
+.cx-val.is-held { color: var(--ink-3); text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.is-off .cx-val { color: var(--ink-3); }
+.cx-conf { margin-top: 3px; font-size: 10.5px; color: var(--ink-3); }
+.cx-lane.is-used::after {
+  content: 'Reported';
+  position: absolute;
+  bottom: 8px;
+  padding: 0 4px;
+  font-size: 9px;
+  font-weight: 650;
+  font-stretch: 75%;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--paper);
+  background: var(--ink);
+}
+.cx-lane.is-measure.is-used::after { right: 8px; }
+.cx-lane.is-model.is-used::after { left: 8px; }
+.cx-verdict {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 4px;
+  border-inline: 1.5px solid var(--ink);
+  text-align: center;
+  background: var(--paper);
+}
+.cx-sign { font-size: 30px; font-weight: 500; line-height: 1; }
+.cx-verdict strong { margin-top: 2px; font-size: 12px; font-weight: 700; font-stretch: 78%; letter-spacing: 0.05em; text-transform: uppercase; }
+.cx-verdict span:last-child { font-size: 10px; line-height: 1.25; color: var(--ink-2); }
+.cx.is-agree .cx-verdict { background: var(--hl-tint); }
+.cx.is-differ { border-color: var(--red); }
+.cx.is-differ .cx-verdict { border-color: var(--red); color: var(--red); }
+.cx.is-single .cx-sign, .cx.is-none .cx-sign { color: var(--ink-3); }
+
+.ca-result { margin-bottom: 6px; }
 
 /* Breakdown tables (core/breakdowns.tsx) */
 .bd { width: 100%; margin-top: 14px; border-collapse: collapse; font-size: 12px; }
