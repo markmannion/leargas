@@ -4,7 +4,7 @@ import type { Drawing } from '../types'
 
 export const UPLOAD_ACCEPT = '.pdf,.png,.jpg,.jpeg,.dxf,.ifc'
 
-/** Same rules as components/PlanUpload: one file goes to /drawings/upload, a set is paired by group. */
+/** One file goes to /drawings/upload; a set goes to /upload, paired by group (plan.pdf + plan.dxf). */
 export function useUpload(onUploaded: (drawings: Drawing[]) => void) {
   const active = useRef(false)
   const [busy, setBusy] = useState(false)
