@@ -173,7 +173,7 @@ class Prior:
 # --------------------------------------------------------------------------- model runs
 
 def run_model(model: str, rows: list[dict], set_name: str, workers: int, with_points: bool = False,
-              label: str | None = None) -> list[dict]:
+              label: str | None = None, crop_swiss: bool = False) -> list[dict]:
     """label names the cache file (default: the model). Run 1 and run 2 are both served as gemma-ft, so
     run 2 MUST pass a label, or it would silently reuse run 1's cached predictions."""
     from .client import ask  # only needed for model runs
@@ -189,9 +189,16 @@ def run_model(model: str, rows: list[dict], set_name: str, workers: int, with_po
         if not Path(img).exists() or not str(img).lower().endswith((".png", ".jpg", ".jpeg")):
             return {"id": r["id"], "answer": None, "unit": None, "abstained": True, "confidence": None,
                     "error": f"no raster image for {r['image']}", "latency_ms": 0}
+        box = None
+        if crop_swiss and r.get("source") == "swiss_dwellings":
+            from .crop import cropped  # plan-only image; points are mapped back to the sheet below
+            img, box = cropped(r["image"])
         for attempt in range(3):
             try:
                 out = ask(img, r["question"], model=model, with_points=with_points)
+                if box is not None and out.get("points"):
+                    from .crop import crop_to_sheet
+                    out["points"] = [crop_to_sheet(p, box) for p in out["points"]]
                 return {"id": r["id"], **{k: out[k] for k in ("answer", "unit", "points", "confidence", "abstained", "raw", "latency_ms")},
                         "completion_tokens": out["usage"].get("completion_tokens"), "prompt_tokens": out["usage"].get("prompt_tokens")}
             except Exception as e:  # noqa: BLE001
@@ -238,6 +245,9 @@ def main() -> None:
     ap.add_argument("--workers", type=int, default=16)
     ap.add_argument("--limit", type=int, default=0, help="first N questions per set (smoke runs)")
     ap.add_argument("--points", action="store_true", help="ask for points (run 2 models)")
+    ap.add_argument("--crop-swiss", action="store_true",
+                    help="show the model swiss sheets cropped to the plan (model/crop.py); cache/report label gets -crop")
+    ap.add_argument("--sources", default="", help="comma list to restrict sets, e.g. swiss_dwellings (quick experiments)")
     ap.add_argument("--label", default=None,
                     help="results/cache name when a served name is reused: --models gemma-ft --label gemma-ft-run2")
     a = ap.parse_args()
@@ -246,7 +256,12 @@ def main() -> None:
     models = [m.strip() for m in a.models.split(",") if m.strip()]
     if a.label and (len(models) != 1 or models[0] == "prior"):
         raise SystemExit("--label needs exactly one served model in --models")
-    out_path = Path(a.out) if a.out else RESULTS / ("baseline.json" if set(models) <= {"prior", "gemma-base"} else f"{a.label or models[0]}.json")
+    def label_for(m: str) -> str | None:
+        if a.crop_swiss and m != "prior":
+            return a.label if a.label and "crop" in a.label else f"{a.label or m}-crop"
+        return a.label
+    plain = set(models) <= {"prior", "gemma-base"} and not a.crop_swiss
+    out_path = Path(a.out) if a.out else RESULTS / ("baseline.json" if plain else f"{label_for(models[-1]) or models[-1]}.json")
     report = json.loads(out_path.read_text(encoding="utf-8")) if out_path.exists() else {}
     prior = Prior(questions) if "prior" in models else None
 
@@ -255,6 +270,8 @@ def main() -> None:
         sets.append("heldout_all_prior")
     for set_name in sets:
         rows = load_set(set_name, questions)
+        if a.sources:
+            rows = [r for r in rows if r.get("source") in a.sources.split(",")]
         if a.limit:
             rows = rows[: a.limit]
         if not rows:
@@ -266,11 +283,11 @@ def main() -> None:
             if m == "prior":
                 preds = [prior.predict(r) for r in rows]
             else:
-                preds = run_model(m, rows, set_name, a.workers, a.points, label=a.label)
+                preds = run_model(m, rows, set_name, a.workers, a.points, label=label_for(m), crop_swiss=a.crop_swiss)
             scored = score_rows(rows, preds)
             summ = summarize(scored)
             lat = [p.get("latency_ms") for p in preds if p.get("latency_ms")]
-            report.setdefault(a.label or m, {})[set_name] = {
+            report.setdefault((label_for(m) if m != "prior" else None) or m, {})[set_name] = {
                 "n": len(rows),
                 "by_source_type": summ,
                 "by_lang": summarize(scored, key=lambda r: f"lang/{r['lang']}"),

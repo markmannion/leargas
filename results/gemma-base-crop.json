@@ -1,0 +1,106 @@
+{
+  "gemma-base-crop": {
+    "heldout_raster": {
+      "n": 400,
+      "by_source_type": {
+        "ALL": {
+          "n": 400,
+          "correct": 112,
+          "wrong": 287,
+          "abstained": 1,
+          "text": 0,
+          "acc": 0.28,
+          "acc_answered": 0.2807,
+          "abstain_rate": 0.0025
+        },
+        "swiss_dwellings/area_printed": {
+          "n": 66,
+          "correct": 18,
+          "wrong": 48,
+          "abstained": 0,
+          "text": 0,
+          "acc": 0.2727,
+          "acc_answered": 0.2727,
+          "abstain_rate": 0.0
+        },
+        "swiss_dwellings/area_unprinted": {
+          "n": 68,
+          "correct": 3,
+          "wrong": 64,
+          "abstained": 1,
+          "text": 0,
+          "acc": 0.0441,
+          "acc_answered": 0.0448,
+          "abstain_rate": 0.0147
+        },
+        "swiss_dwellings/count": {
+          "n": 266,
+          "correct": 91,
+          "wrong": 175,
+          "abstained": 0,
+          "text": 0,
+          "acc": 0.3421,
+          "acc_answered": 0.3421,
+          "abstain_rate": 0.0
+        }
+      },
+      "by_lang": {
+        "ALL": {
+          "n": 400,
+          "correct": 112,
+          "wrong": 287,
+          "abstained": 1,
+          "text": 0,
+          "acc": 0.28,
+          "acc_answered": 0.2807,
+          "abstain_rate": 0.0025
+        },
+        "lang/de": {
+          "n": 179,
+          "correct": 42,
+          "wrong": 137,
+          "abstained": 0,
+          "text": 0,
+          "acc": 0.2346,
+          "acc_answered": 0.2346,
+          "abstain_rate": 0.0
+        },
+        "lang/en": {
+          "n": 174,
+          "correct": 52,
+          "wrong": 122,
+          "abstained": 0,
+          "text": 0,
+          "acc": 0.2989,
+          "acc_answered": 0.2989,
+          "abstain_rate": 0.0
+        },
+        "lang/fr": {
+          "n": 25,
+          "correct": 10,
+          "wrong": 15,
+          "abstained": 0,
+          "text": 0,
+          "acc": 0.4,
+          "acc_answered": 0.4,
+          "abstain_rate": 0.0
+        },
+        "lang/it": {
+          "n": 22,
+          "correct": 8,
+          "wrong": 13,
+          "abstained": 1,
+          "text": 0,
+          "acc": 0.3636,
+          "acc_answered": 0.381,
+          "abstain_rate": 0.0455
+        }
+      },
+      "median_latency_ms": 939.0
+    }
+  },
+  "_meta": {
+    "generated": "2026-11-14 12:32",
+    "scorer": "harry"
+  }
+}
