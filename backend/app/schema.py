@@ -174,6 +174,7 @@ class SlabGroup(BaseModel):
     value: float = Field(ge=0, allow_inf_nan=False)
     unit: Literal["m2"] = "m2"
     slab_ids: List[str]
+    slab_types: List[str] = Field(default_factory=list, description="Slab type names in this group, largest area first")
 
 
 class OpeningItem(BaseModel):

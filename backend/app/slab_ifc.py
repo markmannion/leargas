@@ -19,6 +19,10 @@ def unit_scale(unit) -> float:
     raise ValueError("Unsupported IFC specification unit")
 
 
+IDENTIFIERS = {"reference", "description", "name", "tag", "id", "identifier", "globalid", "mark",
+               "typemark", "comments", "comment", "barcode", "status"}
+
+
 def _positive(value):
     if isinstance(value, (int, float)) and not isinstance(value, bool) and isfinite(value) and value > 0:
         return float(value)
@@ -86,6 +90,10 @@ def _reinforcement_properties(obj, scale):
     for pset, name, value, prop in _properties(obj):
         context = f"{pset}.{name}"
         if not re.search(r"reinforc|rebar|mesh", context, re.I):
+            continue
+        # Identifiers, not bars: Revit fills Pset_ReinforcementBarPitchOfSlab.Reference with the
+        # slab type name ("Floor:Generic 150mm") on every slab, reinforced or not.
+        if re.sub(r"[^a-z]", "", name.casefold()) in IDENTIFIERS:
             continue
         text = specification_text(value)
         if _positive(value) and prop.is_a("IfcPropertySingleValue") and prop.NominalValue.is_a() in (

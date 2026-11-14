@@ -660,6 +660,14 @@
           },
           "title": "Slab Ids",
           "type": "array"
+        },
+        "slab_types": {
+          "description": "Slab type names in this group, largest area first",
+          "items": {
+            "type": "string"
+          },
+          "title": "Slab Types",
+          "type": "array"
         }
       },
       "required": [

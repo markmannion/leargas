@@ -123,6 +123,7 @@ export interface SlabGroup {
   value: number
   unit: 'm2'
   slab_ids: string[]
+  slab_types?: string[]
 }
 
 export interface DatasetQuestion {

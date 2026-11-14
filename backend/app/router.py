@@ -566,7 +566,7 @@ def slab_takeoff_requested(req: AskRequest) -> bool:
     # Unrecognized specification questions must not degrade to a scalar raster prediction.
     import re
     return bool(re.search(r"\bslabs?\b", req.question, re.I) and re.search(
-        r"\b(?:thickness|reinforcement|rebar|specifications?)\b", req.question, re.I))
+        r"\b(?:thickness|reinforcement|reinforcing|rebars?|bars|types?|schedule|takeoff|specifications?)\b", req.question, re.I))
 
 
 def route(req: AskRequest) -> Answer:
@@ -581,8 +581,12 @@ def route(req: AskRequest) -> Answer:
     if slab_takeoff_requested(req):
         pr = parse(parse_question, use_llm=False)
         q = pr.query
+        if q is not None and q.op == "area" and q.target == "slab" and not q.group_by and not q.side_area:
+            q = q.model_copy(update={"group_by": "thickness_reinforcement", "unit": "m2"})
+        elif q is None and req.slab_breakdown:
+            q = Query(op="area", target="slab", group_by="thickness_reinforcement", unit="m2")
         if q is None or q.op != "area" or q.target != "slab":
-            out = Outcome(Source.geometry_dxf, reason="Ask: Show slab area grouped by thickness and reinforcement.")
+            out = Outcome(Source.geometry_dxf, reason="Ask: Slab area by type (thickness and bars).")
         elif engine not in ("auto", "geometry"):
             out = Outcome(Source.geometry_dxf, reason="Slab specifications require the Auto or Geometry engine.")
         elif req.region or req.area_mode == "intersection":

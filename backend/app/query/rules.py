@@ -103,6 +103,10 @@ def _parse_opening(t: str, args: List[Arg]) -> Optional[Query]:
                  type_mark=mark, count_basis=basis, level=level, scope="level" if level else "plan")
 
 
+# "Slab area by type (thickness and bars)", "... by thickness and reinforcement", "... per rebar".
+_SLAB_SPEC = r"(?:(?:slab\s+)?types?|specifications?|thickness(?:es)?|reinforcement|reinforcing(?:\s+bars)?|rebars?|bars)"
+
+
 def _strip_parens(t: str) -> str:
     """Remove explanatory parentheticals, but keep ones holding placeholders, e.g. '(<S>)'."""
     return re.sub(r"\s*\((?![^)]*<[SNL]>)[^)]*\)", "", t)
@@ -124,9 +128,9 @@ def parse_template(template: str, args: List[Arg]) -> Optional[Query]:
     t = re.sub(r"\s+", " ", t).strip()
 
     slab_group = re.fullmatch(
-        r"(?:(?:show|calculate|measure|what is)\s+)?(?:the\s+)?(?:total\s+)?"
-        r"(?:slab(?:s| zones?)? areas?|area of (?:all )?(?:the )?slabs?)\s+"
-        r"(?:grouped\s+)?by\s+(?:thickness and reinforcement|reinforcement and thickness)"
+        r"(?:(?:show|calculate|measure|list|give me|what is|what are)\s+)?(?:the\s+)?(?:total\s+)?"
+        r"(?:(?:slab(?:s| zones?)? areas?|area of (?:all )?(?:the )?slabs?)\s+(?:grouped\s+)?(?:by|per)\s+"
+        rf"{_SLAB_SPEC}(?:(?:\s*,|\s+and|\s*/|\s*\+)\s+{_SLAB_SPEC})*|slab (?:schedule|takeoff|take-off))"
         r"(?:\s+(?:on|in)\s+(?:level|storey|floor|model)\s+(<S>))?\s*\??", t,
     )
     if slab_group:
