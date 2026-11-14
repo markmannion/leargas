@@ -100,7 +100,8 @@ def _paper(sheet: Sheet) -> Tuple[Optional[str], float]:
     for t in sheet.texts:
         s = t.text.upper()
         for name in PAPER:
-            if re.search(rf"(?<![A-Z0-9]){name.replace(' ', r'\s*')}(?![0-9])", s):
+            pat = name.replace(" ", r"\s*")  # no backslash inside the f-string: Python < 3.12
+            if re.search(rf"(?<![A-Z0-9]){pat}(?![0-9])", s):
                 named.append(name)
     for name in named:
         w, h = PAPER[name]

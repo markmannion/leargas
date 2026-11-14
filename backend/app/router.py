@@ -653,7 +653,9 @@ def route(req: AskRequest) -> Answer:
     ifc = None if dxf else ifc_model(req.path)
     image = raster_image(req.path)
 
-    if slab_takeoff_requested(req):
+    # Slab takeoff from CAD/BIM. A sheet with no IFC/DXF twin goes to the sheet reader instead, which
+    # reads the printed slab callouts (thickness, bars) and measures the region around each one.
+    if slab_takeoff_requested(req) and engine != "sheet" and (dxf or ifc or not sheet_applies(req.path)):
         pr = parse(parse_question, use_llm=False)
         q = pr.query
         if q is not None and q.op == "area" and q.target == "slab" and not q.group_by and not q.side_area:

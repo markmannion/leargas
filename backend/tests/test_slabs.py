@@ -405,3 +405,14 @@ def test_slab_type_phrasings_group(question):
 def test_plain_slab_area_with_breakdown_flag_is_grouped():
     req = AskRequest(path="data/x/none.pdf", question="What is the slab area?", slab_breakdown=True)
     assert router.slab_takeoff_requested(req)
+
+
+def test_slab_question_on_plain_sheet_goes_to_sheet_reader(monkeypatch):
+    calls = []
+    monkeypatch.setattr(router, "dxf_twin", lambda rel: None)
+    monkeypatch.setattr(router, "ifc_model", lambda rel: None)
+    monkeypatch.setattr(router, "sheet_applies", lambda rel: True)
+    monkeypatch.setattr(router, "run_sheet", lambda rel, q: calls.append(q) or router.Outcome(
+        router.Source.sheet_reader, reason="no callouts"))
+    router.route(AskRequest(path="data/x/structural.pdf", question="Slab area by type (thickness and bars)"))
+    assert calls == ["Slab area by type (thickness and bars)"]
