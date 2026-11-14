@@ -98,3 +98,23 @@ def test_gemma_calibrated_needs_dataset_template(monkeypatch):
     assert gemma_calibrated(AskRequest(path=path, question="q")) is False
     monkeypatch.setattr(router, "GEMMA_CALIBRATED_ONLY", False)
     assert gemma_calibrated(AskRequest(path="uploads/0123456789ab/p.png", question="q")) is True
+
+
+def test_gemma_threshold_is_calibrated_per_slice(monkeypatch):
+    from app.schema import QuestionType
+    from model import gemma_engine
+
+    monkeypatch.setattr(router, "GEMMA_VERIFIED_OVERRIDE", None)
+    th = {"ALL": 0.8, "cubicasa5k/count": 0.75, "swiss_dwellings/count": 0.92, "swiss_dwellings/area_unprinted": None}
+    monkeypatch.setattr(gemma_engine, "_calibration", lambda label: th if label == "gemma-ft" else {})
+    cc = AskRequest(path="data/cubicasa5k/x.png", question="q")
+    sw = AskRequest(path="data/swiss_dwellings/x.pdf", question="q")
+    assert router.gemma_threshold(cc, Source.gemma_ft, QuestionType.count) == 0.75
+    assert router.gemma_threshold(sw, Source.gemma_ft, QuestionType.count) == 0.92
+    assert router.gemma_threshold(cc, Source.gemma_ft, QuestionType.length) == 0.8  # falls back to ALL
+    assert router.gemma_threshold(cc, Source.gemma_base, QuestionType.count) == router.GEMMA_VERIFIED  # no file
+    gem = Outcome(Source.gemma_ft, value=2, unit="count", confidence=0.78, explanation="model")
+    assert reconcile(cc, None, [gem])["status"] == "verified"
+    low = Outcome(Source.gemma_ft, value=4, unit="count", confidence=0.31, explanation="model")
+    r = reconcile(cc, None, [low])
+    assert r["status"] == "cannot_verify" and r["answer"] is None and r["confidence"] == 0.31

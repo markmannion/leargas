@@ -45,9 +45,16 @@ from .schema import (
 
 AGREE_TOL = 0.02  # relative, matches the official scoring tolerance
 GEOMETRY_CONFIDENCE = 0.95
-# gemma-base is ~93% right at confidence >= 0.99 but only ~58% at 0.8-0.95 (957 held-out answers,
-# results/calibration_gemma-base.json), so anything lower lets wrong answers through as verified.
-GEMMA_VERIFIED = float(os.environ.get("LEARGAS_GEMMA_VERIFIED", 0.99))
+# The `verified` bar for a Gemma-only answer is the calibrated 95%-precision threshold for that model,
+# source and question type (results/calibration_<label>.json via model.gemma_engine): e.g. run 1 is
+# 0.80 on CubiCasa counts and 0.92 on swiss counts, gemma-base ~0.99. A single fixed 0.99 marked
+# most of run 1's correct answers partial. LEARGAS_GEMMA_VERIFIED, if set, overrides it everywhere;
+# GEMMA_VERIFIED is the fallback when no calibration file is found.
+GEMMA_VERIFIED_OVERRIDE = os.environ.get("LEARGAS_GEMMA_VERIFIED")
+GEMMA_VERIFIED = float(GEMMA_VERIFIED_OVERRIDE or 0.99)
+# Which calibration file each served model uses. Run 2 is also served as gemma-ft: point this at
+# its own calibration (LEARGAS_GEMMA_FT_LABEL=gemma-ft-run2) when it's swapped in.
+GEMMA_LABELS = {Source.gemma_ft: os.environ.get("LEARGAS_GEMMA_FT_LABEL", "gemma-ft"), Source.gemma_base: "gemma-base"}
 GEMMA_PARTIAL = float(os.environ.get("LEARGAS_GEMMA_PARTIAL", 0.5))
 GEMMA_TIMEOUT = float(os.environ.get("LEARGAS_GEMMA_TIMEOUT", 60))
 # Run 1 and every baseline were prompted without the points addendum; only a model trained with
@@ -319,6 +326,27 @@ def gemma_calibrated(req: AskRequest) -> bool:
     return parse(req.question, use_llm=False).parser == "template"
 
 
+def gemma_threshold(req: AskRequest, source: Source, qtype: QuestionType) -> float:
+    """Calibrated `verified` threshold for this model on this kind of drawing and question."""
+    if GEMMA_VERIFIED_OVERRIDE:
+        return GEMMA_VERIFIED
+    if _import_model_pkg() is None:
+        return GEMMA_VERIFIED
+    try:
+        from model import common, gemma_engine
+    except Exception:
+        return GEMMA_VERIFIED
+    t = qtype.value
+    if common.source_of(req.path) == "swiss_dwellings" and t == "area":
+        t = "area_printed" if common.prints_areas(req.path) else "area_unprinted"
+    th = gemma_engine._calibration(GEMMA_LABELS.get(source, "gemma-ft"))
+    if not th:
+        return GEMMA_VERIFIED
+    v = th.get(f"{common.source_of(req.path)}/{t}", th.get("ALL"))
+    # null = no threshold reached 95% precision on that slice, so it can't be verified at all
+    return float(v) if v is not None else 1.01
+
+
 def reconcile(req: AskRequest, q: Optional[Query], outcomes: List[Outcome], calibrated: bool = True) -> dict:
     geo = next((o for o in outcomes if o.source in (Source.geometry_dxf, Source.geometry_ifc)), None)
     gem = next((o for o in outcomes if o.source in (Source.gemma_ft, Source.gemma_base)), None)
@@ -344,20 +372,28 @@ def reconcile(req: AskRequest, q: Optional[Query], outcomes: List[Outcome], cali
         return answer(geo, Status.verified, geo.confidence, f"{geo.explanation}{note}")
     if gem and gem.ok:
         note = f" Geometry could not check it: {geo.reason}" if geo and geo.reason else ""
-        if gem.confidence >= GEMMA_VERIFIED and calibrated:
+        bar = gemma_threshold(req, gem.source, qtype)
+        if gem.confidence >= bar and calibrated:
             return answer(gem, Status.verified, gem.confidence, f"{gem.explanation}{note}")
-        if gem.confidence >= GEMMA_VERIFIED:
+        if gem.confidence >= bar:
             return answer(gem, Status.partial, gem.confidence,
                           f"{gem.explanation} Not verified: the model's confidence is only calibrated on "
                           f"dataset-style questions about dataset drawings.{note}")
         if gem.confidence >= GEMMA_PARTIAL:
-            return answer(gem, Status.partial, gem.confidence, f"{gem.explanation} Low confidence.{note}")
-        reasons = [f"{gem.source.value} answered {gem.value} with low confidence ({gem.confidence:.2f})."]
+            why = (f"below the {bar:.2f} needed to verify this kind of question" if bar <= 1
+                   else "the model is never 95% reliable on this kind of question, so it isn't verified")
+            return answer(gem, Status.partial, gem.confidence,
+                          f"{gem.explanation} Unverified: confidence {gem.confidence:.2f} is {why}.{note}")
+        reasons = [f"{gem.source.value} guessed {_value(gem.value, qtype)}, but with confidence "
+                   f"{gem.confidence:.2f}, too low to give as an answer."]
     else:
         reasons = []
     reasons += [o.reason for o in outcomes if o.reason]
     src = outcomes[0].source if outcomes else Source.geometry_dxf
-    return dict(answer=None, unit=None, type=qtype, status=Status.cannot_verify, confidence=0.0, source=src,
+    # confidence: the model's own score for the guess it withheld (0 when nobody answered), so the UI
+    # can show how close it was instead of a flat 0%.
+    conf = gem.confidence if gem and gem.ok else 0.0
+    return dict(answer=None, unit=None, type=qtype, status=Status.cannot_verify, confidence=conf, source=src,
                 evidence=[], explanation=" ".join(reasons) or "No source can answer this drawing.", sources=sources)
 
 
