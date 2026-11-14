@@ -15,6 +15,18 @@ Run the backend alongside it (from the repo root):
 
 Point the proxy at another backend with `LEARGAS_API=http://host:port npm run dev`, or build against a deployed API with `VITE_API_BASE=https://host npm run build`.
 
+## Layouts
+
+There are three UIs on the same backend. Choose one with `?ui=`:
+
+| URL | Layout |
+|---|---|
+| `/` | The original: floating panels over the drawing (`src/App.tsx`, `src/components/`). |
+| `/?ui=clar` | **Clár**: the screen is a drawing sheet. Zone references (1–8 across, A–F down) pan and zoom with the drawing. A title strip on the right holds the question, the answer and a register of questions asked. Yellow highlighter marks the evidence; a red revision cloud marks a region. The line style shows the source: solid is measured, dashed is estimated, dotted is read from text. |
+| `/?ui=solas` | **Solas**: dark. The question and its answer read as one line across the top. When an answer comes back, the sheet goes dark except the evidence. A sharp edge means the evidence was measured, a soft edge means it was estimated. Nothing accepted, nothing lit. Typing in the question box filters the suggested questions. You can drop files anywhere on the window to upload them. |
+
+Both new layouts share `src/core/`: session state (`session.ts`), pan/zoom/region drawing (`viewport.ts`), shape and zone helpers, the drawing catalogue, uploads, and the breakdown tables. Only markup and CSS differ. Each loads its own fonts (Archivo, Atkinson Hyperlegible), which are bundled, so nothing is fetched from a CDN.
+
 ## What it talks to
 
 Use **Upload plans**, or drop files on the upload area in the plan library.
