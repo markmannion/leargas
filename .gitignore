@@ -186,3 +186,6 @@ tricky_questions/
 
 # hosted battery: staged copies of dataset drawings and per-question answers (dataset-derived)
 results/battery/
+
+# macOS
+.DS_Store
