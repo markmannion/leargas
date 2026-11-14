@@ -22,7 +22,10 @@ if [ ! -f "$LEARGAS_QUESTIONS" ]; then
     exit 1
   fi
   echo "Downloading $DATASET_REPO to $LEARGAS_DATA_ROOT"
-  hf download "$DATASET_REPO" --repo-type=dataset --local-dir "$LEARGAS_DATA_ROOT"
+  # LEARGAS_DATASET_INCLUDE: space-separated patterns to fetch only part of the 12 GB dataset.
+  INCLUDE=()
+  [ -n "${LEARGAS_DATASET_INCLUDE:-}" ] && read -r -a INCLUDE <<< "$LEARGAS_DATASET_INCLUDE" && INCLUDE=(--include "${INCLUDE[@]}")
+  hf download "$DATASET_REPO" --repo-type=dataset --local-dir "$LEARGAS_DATA_ROOT" "${INCLUDE[@]}"
 fi
 
 if [ ! -f "$LEARGAS_QUERY_TEMPLATES" ]; then
