@@ -20,5 +20,27 @@
     "usd_per_1k": 0.0558,
     "median_latency_ms": 2360.5,
     "measured": "2026-11-14 12:25:54"
+  },
+  "gemma-e2b": {
+    "model": "gemma-e2b",
+    "gpu": "A100 80GB (shared)",
+    "usd_per_hour": 2.38,
+    "n": 128,
+    "workers": 32,
+    "qps": 16.225,
+    "usd_per_1k": 0.0407,
+    "median_latency_ms": 1614.0,
+    "measured": "2026-11-14 14:17:33"
+  },
+  "gemma-ft-e2b": {
+    "model": "gemma-ft-e2b",
+    "gpu": "A100 80GB (shared)",
+    "usd_per_hour": 2.38,
+    "n": 128,
+    "workers": 32,
+    "qps": 16.556,
+    "usd_per_1k": 0.0399,
+    "median_latency_ms": 1566.5,
+    "measured": "2026-11-14 14:22:45"
   }
 }

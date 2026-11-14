@@ -1,0 +1,47 @@
+[
+  {
+    "model": "gemma-ft",
+    "label": "Gemma 4 E4B fine-tuned",
+    "acc": 0.61,
+    "usd_per_1k": 0.0463,
+    "qps": 14.294,
+    "gpu": "A100 80GB (shared)",
+    "fine_tuned": true
+  },
+  {
+    "model": "gemma-base",
+    "label": "Gemma 4 E4B base",
+    "acc": 0.33,
+    "usd_per_1k": 0.0558,
+    "qps": 11.839,
+    "gpu": "A100 80GB (shared)",
+    "fine_tuned": false
+  },
+  {
+    "model": "gemma-e2b",
+    "label": "Gemma 4 E2B base",
+    "acc": 0.35,
+    "usd_per_1k": 0.0407,
+    "qps": 16.225,
+    "gpu": "A100 80GB (shared)",
+    "fine_tuned": false
+  },
+  {
+    "model": "gemma-ft-e2b",
+    "label": "Gemma 4 E2B fine-tuned",
+    "acc": 0.58,
+    "usd_per_1k": 0.0399,
+    "qps": 16.556,
+    "gpu": "A100 80GB (shared)",
+    "fine_tuned": true
+  },
+  {
+    "model": "gemma-ft-run2",
+    "label": "E4B fine-tuned (run 2)",
+    "acc": 0.591,
+    "usd_per_1k": 0.0463,
+    "qps": 14.294,
+    "gpu": "A100 80GB (shared)",
+    "fine_tuned": true
+  }
+]

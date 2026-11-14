@@ -237,6 +237,9 @@ def main() -> None:
                     help="swiss rows use the plan-only crops (python -m model.crop --write first); points mapped to the crop")
     ap.add_argument("--reweight", default=None, metavar="PREDS",
                     help="run 2: oversample families this run's held-out predictions got wrong")
+    ap.add_argument("--focus", default=None, metavar="FAMS",
+                    help="specialist data: regex on the question text; --focus-frac of the rows match it, the rest is a balanced replay mix")
+    ap.add_argument("--focus-frac", type=float, default=0.75)
     ap.add_argument("--paraphrase-frac", type=float, default=0.0,
                     help="run 2: share of English questions reworded (same gold answer)")
     ap.add_argument("--preview", type=int, default=0, help="save N resized training images to data/sft/preview/ and exit")
@@ -281,7 +284,19 @@ def main() -> None:
         return
 
     n_abstain = int(a.n * a.abstain_frac)
-    if a.reweight:
+    if a.focus:
+        focus_re = re.compile(a.focus, re.I)
+        hit = [r for r in rows if r["type"] == "count" and focus_re.search(r["question"])]
+        miss = [r for r in rows if not (r["type"] == "count" and focus_re.search(r["question"]))]
+        if not hit:
+            raise SystemExit(f"--focus: no rows match {a.focus!r}")
+        rng.shuffle(hit)
+        n_f = min(len(hit) - a.val, int((a.n - n_abstain) * a.focus_frac))
+        val = hit[n_f:n_f + a.val]
+        train = hit[:n_f] + pick_balanced(miss, a.n - n_abstain - n_f, rng)
+        rng.shuffle(train)
+        print(f"focus: {n_f} rows ({len(hit)} available), {len(train) - n_f} replay")
+    elif a.reweight:
         pool = pick_balanced(rows, 2 * (a.n - n_abstain) + a.val, rng)
         val, rest = pool[: a.val], pool[a.val:]
         train = weighted_pick(rest, a.n - n_abstain, family_weights(a.reweight), rng)
@@ -339,7 +354,7 @@ def main() -> None:
     val_path = Path(a.out).with_name(Path(a.out).stem + "_val.jsonl")
     write_jsonl(val_path, [to_row(r, i, "val") for i, r in enumerate(val)])
 
-    if a.reweight:
+    if a.reweight or a.focus:
         fam = collections.Counter(family(r) for r in out_rows if r["type"] != "abstain")
         print("families after reweighting:", ", ".join(f"{k} {v}" for k, v in fam.most_common()))
     c = collections.Counter((r["source"], r["type"], r["lang"]) for r in out_rows)
