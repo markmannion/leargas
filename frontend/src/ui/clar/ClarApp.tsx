@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import '@fontsource-variable/archivo/wdth.css'
+import '@fontsource/barlow/400.css'
+import '@fontsource/barlow/500.css'
+import '@fontsource/barlow/600.css'
+import '@fontsource/barlow/700.css'
+import '@fontsource/barlow-semi-condensed/400.css'
+import '@fontsource/barlow-semi-condensed/500.css'
+import '@fontsource/barlow-semi-condensed/600.css'
+import '@fontsource/barlow-semi-condensed/700.css'
+import '@fontsource/barlow-condensed/500.css'
+import '@fontsource/barlow-condensed/600.css'
+import '@fontsource/barlow-condensed/700.css'
 import './clar.css'
 import { api } from '../../api'
 import type { Answer, Drawing, Engine } from '../../types'
@@ -11,6 +21,7 @@ import { explain, itemised, rejectedGuess, valueParts, value } from '../../core/
 import { evidenceZone, shapeCentre, zoneOf } from '../../core/shapes'
 import { OpeningTable, RoomTable, SlabTable } from '../../core/breakdowns'
 import { speakableAnswer, useVoiceInput } from '../../voice'
+import { UPLOAD_ACCEPT, useUpload } from '../../core/upload'
 import { ClarSheet } from './ClarSheet'
 import { ClarRegister } from './ClarRegister'
 import { CrossCheck } from './CrossCheck'
@@ -43,6 +54,8 @@ export default function ClarApp() {
   const s = useSession()
   const [registerOpen, setRegisterOpen] = useState(false)
   const [showMarks, setShowMarks] = useState(true)
+  const up = useUpload((d) => s.uploaded(d))
+  const [dropping, setDropping] = useState(false)
   const src = s.selected && s.selected.render !== 'none' ? api.drawingUrl(s.selected.path) : null
   const vp = useViewport({
     src, pad: 36, selectingRegion: s.selectingRegion,
@@ -64,7 +77,19 @@ export default function ClarApp() {
 
   return (
     <div className="clar">
-      <main className="cl-field" aria-label="Sheet">
+      <main className={`cl-field${dropping ? ' is-dropping' : ''}`} aria-label="Sheet"
+        onDragOver={(e) => {
+          if (registerOpen || !e.dataTransfer.types.includes('Files')) return
+          e.preventDefault()
+          setDropping(true)
+        }}
+        onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropping(false) }}
+        onDrop={(e) => {
+          if (registerOpen || !e.dataTransfer.files.length) return
+          e.preventDefault()
+          setDropping(false)
+          void up.upload(e.dataTransfer.files)
+        }}>
         <ClarSheet vp={vp} evidence={evidence} showMarks={showMarks} hovered={s.hovered} highlighted={highlighted}
           onHover={s.setHovered} region={s.region} selecting={s.selectingRegion}
           renderNote={s.selected ? RENDER_NOTE[s.selected.render] : null} />
@@ -83,6 +108,11 @@ export default function ClarApp() {
           <div className="cs-f"><span className="cs-label">Date</span><span>{today}</span></div>
           <div className="cs-f"><span className="cs-label">Sheet</span><span>{s.selected ? '1 of 1' : '—'}</span></div>
         </footer>
+        {dropping && (
+          <div className="cl-drop" aria-hidden="true">
+            <p><strong>Drop to upload</strong>PDF, PNG, JPG, DXF or IFC</p>
+          </div>
+        )}
         {registerOpen && (
           <ClarRegister drawings={s.drawings} selected={s.selected?.path ?? null} loading={s.listLoading} error={s.listError}
             onSelect={(d) => { s.select(d); setRegisterOpen(false) }}
@@ -103,6 +133,7 @@ export default function ClarApp() {
           <button type="button" className="cs-link" onClick={() => setRegisterOpen((o) => !o)} aria-expanded={registerOpen}>
             {registerOpen ? 'Close the register' : 'Drawing register'}
           </button>
+          <UploadControl up={up} />
         </section>
 
         <AskCell s={s} key={s.selected?.path ?? 'none'} />
@@ -123,6 +154,25 @@ export default function ClarApp() {
         </div>
 
       </aside>
+    </div>
+  )
+}
+
+/** Upload your own drawing: the main way in for a new sheet, so it sits under the drawing title. */
+function UploadControl({ up }: { up: ReturnType<typeof useUpload> }) {
+  const file = useRef<HTMLInputElement>(null)
+  const note = up.error ?? (up.message || 'PDF, PNG, JPG, DXF or IFC. You can also drop files on the sheet.')
+  return (
+    <div className="cs-upload">
+      <input ref={file} type="file" hidden multiple accept={UPLOAD_ACCEPT}
+        onChange={(e) => { void up.upload(e.currentTarget.files); e.currentTarget.value = '' }} />
+      <button type="button" className="cs-up" disabled={up.busy} onClick={() => file.current?.click()}>
+        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+          <path d="M8 11V2.5M4.5 6 8 2.5 11.5 6M2.5 10.5v3h11v-3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+        </svg>
+        {up.busy ? (up.progress === 100 ? 'Preparing…' : `Uploading ${up.progress}%`) : 'Upload a drawing'}
+      </button>
+      <p className={`cs-up-note${up.error ? ' is-error' : ''}`} role="status">{note}</p>
     </div>
   )
 }
