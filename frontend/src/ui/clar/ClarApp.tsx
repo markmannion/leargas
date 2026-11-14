@@ -68,6 +68,21 @@ export default function ClarApp() {
         <ClarSheet vp={vp} evidence={evidence} showMarks={showMarks} hovered={s.hovered} highlighted={highlighted}
           onHover={s.setHovered} region={s.region} selecting={s.selectingRegion}
           renderNote={s.selected ? RENDER_NOTE[s.selected.render] : null} />
+        <footer className="cs-block" data-no-pan aria-label="Title block">
+          <div className="cs-f"><span className="cs-label">Zone</span><span>{vp.cursor && vp.aspect ? zoneOf(vp.cursor, vp.aspect) : '—'}</span></div>
+          <div className="cs-f"><span className="cs-label">Zoom</span><span>{Math.round(vp.view.k * 100)}%</span></div>
+          <div className="cs-f"><span className="cs-label">Format</span><span>{s.selected ? FORMAT_LABEL[s.selected.render] : '—'}</span></div>
+          <div className="cs-f"><span className="cs-label">Ref.</span><span>{s.activeEntry ? ref(s.activeEntry) : '—'}</span></div>
+          <label className="cs-f cs-f-wide">
+            <span className="cs-label">Checked by</span>
+            <select value={s.engine} onChange={(e) => s.setEngine(e.target.value as Engine)}
+              title="Which engine answers. Automatic uses geometry when there is a DXF or IFC file, the sheet reader for large sheets, and otherwise the fine-tuned model.">
+              {ENGINES.map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}
+            </select>
+          </label>
+          <div className="cs-f"><span className="cs-label">Date</span><span>{today}</span></div>
+          <div className="cs-f"><span className="cs-label">Sheet</span><span>{s.selected ? '1 of 1' : '—'}</span></div>
+        </footer>
         {registerOpen && (
           <ClarRegister drawings={s.drawings} selected={s.selected?.path ?? null} loading={s.listLoading} error={s.listError}
             onSelect={(d) => { s.select(d); setRegisterOpen(false) }}
@@ -107,21 +122,6 @@ export default function ClarApp() {
           <LogCell log={s.log} active={s.activeEntry} onOpen={s.reopen} />
         </div>
 
-        <footer className="cs-block">
-          <div className="cs-f"><span className="cs-label">Zone</span><span>{vp.cursor && vp.aspect ? zoneOf(vp.cursor, vp.aspect) : '—'}</span></div>
-          <div className="cs-f"><span className="cs-label">Zoom</span><span>{Math.round(vp.view.k * 100)}%</span></div>
-          <div className="cs-f"><span className="cs-label">Format</span><span>{s.selected ? FORMAT_LABEL[s.selected.render] : '—'}</span></div>
-          <div className="cs-f"><span className="cs-label">Ref.</span><span>{s.activeEntry ? ref(s.activeEntry) : '—'}</span></div>
-          <label className="cs-f cs-f-wide">
-            <span className="cs-label">Checked by</span>
-            <select value={s.engine} onChange={(e) => s.setEngine(e.target.value as Engine)}
-              title="Which engine answers. Automatic uses geometry when there is a DXF or IFC file, the sheet reader for large sheets, and otherwise the fine-tuned model.">
-              {ENGINES.map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}
-            </select>
-          </label>
-          <div className="cs-f"><span className="cs-label">Date</span><span>{today}</span></div>
-          <div className="cs-f"><span className="cs-label">Sheet</span><span>{s.selected ? '1 of 1' : '—'}</span></div>
-        </footer>
       </aside>
     </div>
   )
