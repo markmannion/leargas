@@ -66,3 +66,18 @@ cd backend && ../.venv/bin/python -m app.query.build_templates --questions ../da
 ```
 
 On the full dataset, without the LLM, 100% of count, area, length and volume questions parse, except 24 bespoke `opening_design` schedule questions. Translations parse to the same query as their English original in every case. `POST /parse` is available as `app.query.api.router`, but it isn't mounted in `main.py` yet.
+
+## IFC engine (`app/ifc.py`)
+
+`answer(path, query)` resolves the IFC model and runs a parsed `Query`. The path can be a `.ifc` file or a plan rendered from one (`<model>_plan-NN-<level>.pdf`).
+
+- **Counts:** element occurrences by IFC class, either for the whole model or for one storey. Nested parts are not counted; ArchiCAD, for example, exports stair risers as `IfcStair` parts.
+- **Areas, lengths and volumes:** taken from the base quantity sets (`BaseQuantities` / `Qto_*`), with each value scaled by its own unit type. Where no quantity is stored, they are computed from geometry: space footprint area, or element volume.
+- **Failures:** a missing storey, an ambiguous space name, or an element with no quantity raises `CannotVerify`. The engine never returns a partial sum.
+
+```bash
+.venv/bin/pip install -r backend/requirements-ifc.txt
+cd backend && ../.venv/bin/python eval_ifc.py   # all IFC-backed gold questions: parser -> engine -> scorer
+```
+
+Current result: **3,062 of 3,062 `ifc_models` questions correct**, without the LLM. All `ifc_bench` questions are free text, which is the stretch task.

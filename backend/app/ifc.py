@@ -81,6 +81,22 @@ def open_model(path: str) -> "Model":
     return Model(path)
 
 
+def _projected_area(g) -> Optional[float]:
+    try:
+        from shapely.geometry import Polygon
+        from shapely.ops import unary_union
+    except ImportError:
+        return None
+    v, f = g.verts, g.faces
+    tris = []
+    for i in range(0, len(f), 3):
+        a, b, c = (f[i + k] * 3 for k in range(3))
+        p = Polygon([(v[a], v[a + 1]), (v[b], v[b + 1]), (v[c], v[c + 1])])
+        if p.area > 1e-9:
+            tris.append(p)
+    return unary_union(tris).area if tris else None
+
+
 def _norm(s: Optional[str]) -> str:
     return " ".join(unicodedata.normalize("NFKC", s or "").casefold().split())
 
@@ -196,8 +212,15 @@ class Model:
         except Exception:
             return None
         # geometry is produced in metres by ifcopenshell.geom
-        v = S.get_footprint_area(g) if what == "area" else S.get_volume(g) if what == "volume" else None
-        return float(v) if v else None
+        if what == "volume":
+            v = S.get_volume(g)
+        elif what == "area":
+            v = S.get_footprint_area(g)
+            if not v:  # e.g. open SurfaceModel bodies: union of faces projected onto the floor plane
+                v = _projected_area(g)
+        else:
+            v = None
+        return float(v) if v and v > 0 else None
 
     # --- names
     @staticmethod
@@ -214,6 +237,10 @@ class Model:
             raise CannotVerify("Room categories, printed labels and apartments are not IFC concepts here")
 
         elems = list(_CLASSES[q.target](self.f))
+        # Some exporters (e.g. ArchiCAD) nest risers/landings as IfcStair parts of an IfcStair.
+        # Count only top-level occurrences: drop elements that are parts of another selected element.
+        ids = {e.id() for e in elems}
+        elems = [e for e in elems if not ((p := E.get_aggregate(e)) is not None and p.id() in ids)]
         scope_txt = "the model"
         storey = None
         if q.scope == "level" or q.level:

@@ -51,6 +51,10 @@ def _build(path):
     for i in range(4):
         add("IfcDoor", "Ground Floor" if i < 3 else "First Floor", f"D{i}")
     add("IfcSanitaryTerminal", "First Floor", "WC")
+    # one stair whose risers are exported as nested IfcStair parts (ArchiCAD style)
+    stair = add("IfcStair", "Ground Floor", "Main stair")
+    parts = [add("IfcStair", "Ground Floor", f"RISER-{i}") for i in range(5)]
+    api.run("aggregate.assign_object", f, products=parts, relating_object=stair)
     f.write(str(path))
     return path
 
@@ -70,6 +74,7 @@ def Q(**kw):
     (Q(op="count", target="room", scope="level", level="first floor"), 2, "count"),  # case-insensitive level
     (Q(op="count", target="sanitary_fixture", scope="model"), 1, "count"),
     (Q(op="count", target="wall", scope="level", level="Ground Floor"), 3, "count"),
+    (Q(op="count", target="stair", scope="model"), 1, "count"),  # nested parts not counted
     (Q(op="area", target="room", scope="level", level="Ground Floor", name="Kitchen (G01)"), 20.5, "m2"),
     (Q(op="area", target="room", scope="level", level="First Floor", name="F02"), 9.0, "m2"),
     (Q(op="area", target="room", scope="level", level="Ground Floor"), 32.75, "m2"),
