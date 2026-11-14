@@ -6,6 +6,7 @@ import { DrawingList } from './components/DrawingList'
 import { SheetViewer } from './components/SheetViewer'
 import { AskPanel } from './components/AskPanel'
 import { AnswerCard } from './components/AnswerCard'
+import { speakableAnswer, useSpeaker, voiceApi } from './voice'
 
 const RENDER_NOTE: Record<Drawing['render'], string | null> = {
   image: null,
@@ -26,6 +27,16 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   const [hovered, setHovered] = useState<number | null>(null)
   const inflight = useRef<AbortController | null>(null)
+  const [voice, setVoice] = useState(false)
+  const { speak, stop: stopSpeech, speaking, error: speechError } = useSpeaker()
+
+  // Voice shows only when the backend has an ElevenLabs key.
+  useEffect(() => {
+    voiceApi
+      .status()
+      .then((s) => setVoice(s.enabled))
+      .catch(() => setVoice(false))
+  }, [])
 
   // API health, re-checked every 15 s so the badge flips when the real router comes up.
   useEffect(() => {
@@ -57,17 +68,19 @@ export default function App() {
 
   const select = useCallback((d: Drawing) => {
     inflight.current?.abort()
+    stopSpeech()
     setSelected(d)
     setAnswer(null)
     setAskError(null)
     setHovered(null)
     history.replaceState(null, '', `#${encodeURIComponent(d.path)}`)
-  }, [])
+  }, [stopSpeech])
 
   const ask = useCallback(
-    async (question: string) => {
+    async (question: string, spoken = false) => {
       if (!selected) return
       inflight.current?.abort()
+      stopSpeech()
       const ctrl = new AbortController()
       inflight.current = ctrl
       setBusy(true)
@@ -77,6 +90,8 @@ export default function App() {
         const ref = selected.questions.find((q) => q.question === question)
         const a = await api.ask({ path: selected.path, question, type: ref?.type ?? null, engine }, ctrl.signal)
         setAnswer(a)
+        // Questions asked by voice get a spoken answer.
+        if (spoken && !ctrl.signal.aborted) void speak(speakableAnswer(a))
       } catch (e) {
         if ((e as Error).name !== 'AbortError') {
           setAnswer(null)
@@ -86,7 +101,7 @@ export default function App() {
         if (inflight.current === ctrl) setBusy(false)
       }
     },
-    [selected, engine],
+    [selected, engine, stopSpeech, speak],
   )
 
   const reference = useMemo(
@@ -123,7 +138,7 @@ export default function App() {
       />
 
       <aside className="inspector glass">
-        <AskPanel key={selected?.path ?? 'none'} drawing={selected} busy={busy} onAsk={ask}>
+        <AskPanel key={selected?.path ?? 'none'} drawing={selected} busy={busy} onAsk={ask} voice={voice}>
           <div className="result">
             {askError && (
               <div className="ask-error">
@@ -131,7 +146,21 @@ export default function App() {
               </div>
             )}
             {answer && (
-              <AnswerCard answer={answer} reference={reference} hovered={hovered} onHover={setHovered} />
+              <AnswerCard
+                answer={answer}
+                reference={reference}
+                hovered={hovered}
+                onHover={setHovered}
+                speech={
+                  voice
+                    ? {
+                        speaking: speaking,
+                        error: speechError,
+                        onToggle: () => (speaking ? stopSpeech() : void speak(speakableAnswer(answer))),
+                      }
+                    : undefined
+                }
+              />
             )}
             {!answer && !askError && (
               <p className="result-empty">
