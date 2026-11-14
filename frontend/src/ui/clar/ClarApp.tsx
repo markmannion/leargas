@@ -9,10 +9,11 @@ import { useViewport } from '../../core/viewport'
 import { collectionName, drawingName, FORMAT_LABEL, suggestionsFor, vectorTwins } from '../../core/catalogue'
 import { explain, itemised, rejectedGuess, valueParts, value } from '../../core/explain'
 import { evidenceZone, shapeCentre, zoneOf } from '../../core/shapes'
-import { OpeningTable, RoomTable, SlabTable, SourceTable } from '../../core/breakdowns'
+import { OpeningTable, RoomTable, SlabTable } from '../../core/breakdowns'
 import { speakableAnswer, useVoiceInput } from '../../voice'
 import { ClarSheet } from './ClarSheet'
 import { ClarRegister } from './ClarRegister'
+import { CrossCheck } from './CrossCheck'
 
 const ENGINES: { id: Engine; label: string }[] = [
   { id: 'auto', label: 'Automatic' },
@@ -166,6 +167,7 @@ function AskCell({ s }: { s: Session }) {
     void s.ask(t, { spoken })
   }
   const mic = useVoiceInput((t) => submit(t, true))
+  const listening = mic.state === 'recording'
 
   // "/" puts the cursor in the question box, as in a search field.
   useEffect(() => {
@@ -189,26 +191,43 @@ function AskCell({ s }: { s: Session }) {
       </div>
 
       <form onSubmit={(e) => { e.preventDefault(); submit(text) }}>
-        <label htmlFor="cl-q" className="cs-label">Question</label>
-        <textarea id="cl-q" ref={box} rows={2} value={text} disabled={!d}
-          placeholder={!d ? 'Open a drawing first' : s.region ? 'How many doors are inside the cloud?' : 'How many windows are on this floor?'}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(text) } }} />
-        <div className="cs-ask-row">
-          <span className="cs-hint">
-            {mic.error ? <span className="cs-warn">{mic.error}</span>
-              : mic.state === 'recording' ? 'Listening. Press Stop to ask.'
-                : mic.state === 'transcribing' ? 'Writing it down…'
-                  : 'Any language. Enter asks.'}
-          </span>
-          {s.voice && (
-            <button type="button" className="cs-btn" onClick={mic.toggle} aria-pressed={mic.state === 'recording'}
-              disabled={blocked || mic.state === 'transcribing'}>
-              {mic.state === 'recording' ? 'Stop' : 'Dictate'}
-            </button>
-          )}
-          <button type="submit" className="cs-btn cs-go" disabled={blocked || !text.trim()}>{s.busy ? 'Asking' : 'Ask'}</button>
+        <div className="cs-q-head">
+          <label htmlFor="cl-q" className="cs-label">Ask a question</label>
+          {d && <span className="cs-q-key"><kbd>/</kbd> to type</span>}
         </div>
+        <div className={`cs-q${listening ? ' is-listening' : ''}${!d ? ' is-off' : ''}`} onClick={() => box.current?.focus()}>
+          <textarea id="cl-q" ref={box} rows={2} value={text} disabled={!d}
+            placeholder={!d ? 'Open a drawing first'
+              : listening ? 'Listening… speak your question'
+                : mic.state === 'transcribing' ? 'Writing it down…'
+                  : s.region ? 'Type a question, e.g. How many doors are inside the cloud?' : 'Type a question, e.g. How many windows are on this floor?'}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(text) } }} />
+          <div className="cs-q-bar">
+            {s.voice && (
+              <button type="button" className={`cs-mic is-${mic.state}`} onClick={(e) => { e.stopPropagation(); mic.toggle() }}
+                aria-pressed={listening} disabled={blocked || mic.state === 'transcribing'}
+                title={listening ? 'Stop and ask' : 'Ask by speaking, in any language'}>
+                <MicIcon />
+                {listening ? 'Stop' : mic.state === 'transcribing' ? 'Writing…' : 'Speak'}
+              </button>
+            )}
+            <span className="cs-q-hint">
+              {mic.error ? <span className="cs-warn">{mic.error}</span>
+                : listening ? 'Press Stop when you’re done'
+                  : 'Any language · Enter to ask'}
+            </span>
+            <button type="submit" className="cs-btn cs-go" disabled={blocked || !text.trim()}>{s.busy ? 'Asking…' : 'Ask'}</button>
+          </div>
+        </div>
+        {s.voice && (
+          <div className="cs-aloud" role="group" aria-label="Read answers aloud">
+            <span className="cs-label">Read answers aloud</span>
+            {([['off', 'Off'], ['spoken', 'When I speak'], ['always', 'Always']] as const).map(([v, label]) => (
+              <button key={v} type="button" aria-pressed={s.readAloud === v} onClick={() => s.setReadAloud(v)}>{label}</button>
+            ))}
+          </div>
+        )}
       </form>
 
       <div className="cs-takeoff">
@@ -265,21 +284,22 @@ function AnswerCell({ s, answer: a, aspect, showMarks, setShowMarks, onPick }: {
         )}
       </div>
       <p className="ca-q">{a.question}</p>
-
-      <div className="ca-row">
-        <p className={`ca-value${longText ? ' is-text' : ''}`}>
-          {cv ? <span className="ca-num">—</span> : <><span className="ca-num">{num}</span>{unit && <span className="ca-unit">{unit}</span>}</>}
-        </p>
-        <div className="ca-status">
-          <strong>{STATUS[a.status][0]}</strong>
-          <span>{guess ? 'Guess held back' : STATUS[a.status][1]}</span>
+      <CrossCheck answer={a} engine={s.engine} gemma={s.gemmaState}>
+        <div className={`ca-row${longText ? ' is-text' : ''}`}>
+          <p className={`ca-value${longText ? ' is-text' : ''}`}>
+            <span className="cs-label ca-result">Result</span>
+            {cv ? <span className="ca-num">—</span> : <><span className="ca-num">{num}</span>{unit && <span className="ca-unit">{unit}</span>}</>}
+          </p>
+          <div className="ca-status">
+            <strong>{STATUS[a.status][0]}</strong>
+            <span>{guess ? 'Guess held back' : STATUS[a.status][1]}</span>
+          </div>
         </div>
-      </div>
+      </CrossCheck>
 
       <ol className="ca-notes">{notes.map((n, i) => <li key={i}>{n}</li>)}</ol>
       {a.explanation && <p className="ca-expl">{a.explanation}</p>}
 
-      <SourceTable answer={a} />
       <RoomTable {...linked} />
       <SlabTable {...linked} />
       <OpeningTable {...linked} />
@@ -306,7 +326,7 @@ function AnswerCell({ s, answer: a, aspect, showMarks, setShowMarks, onPick }: {
         <label className="ca-toggle">
           <input type="checkbox" checked={showMarks} onChange={(e) => setShowMarks(e.target.checked)} />
           Show the {a.evidence.length} {a.evidence.length === 1 ? 'mark' : 'marks'} on the sheet
-          <span className="ca-key" aria-hidden="true"><i className="k-geo" />measured <i className="k-est" />estimated <i className="k-read" />read</span>
+          <span className="ca-key" aria-hidden="true"><i className="k-geo" />measured <i className="k-read" />read <i className="k-est" />Gemma</span>
         </label>
       )}
     </article>
@@ -371,5 +391,14 @@ function LogCell({ log, active, onOpen }: { log: LogEntry[]; active: number | nu
         </tbody>
       </table>
     </section>
+  )
+}
+
+function MicIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+      <rect x="5.5" y="1.5" width="5" height="8.5" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M3 7.5a5 5 0 0 0 10 0M8 12.5V15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
   )
 }

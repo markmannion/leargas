@@ -14,6 +14,7 @@ export interface LogEntry {
   at: Date
 }
 
+export type ReadAloud = 'off' | 'spoken' | 'always'
 export type GemmaState = 'available' | 'unavailable' | 'unconfigured' | 'checking' | 'disabled' | undefined
 
 export function useSession() {
@@ -35,6 +36,17 @@ export function useSession() {
   const [log, setLog] = useState<LogEntry[]>([])
   const [activeEntry, setActiveEntry] = useState<number | null>(null)
   const [voice, setVoice] = useState(false)
+  // When answers are read aloud: never, only after a spoken question, or after every question.
+  const [readAloud, setReadAloudState] = useState<ReadAloud>(() => {
+    try {
+      const v = localStorage.getItem('leargas.readAloud')
+      return v === 'off' || v === 'always' ? v : 'spoken'
+    } catch { return 'spoken' }
+  })
+  const setReadAloud = useCallback((v: ReadAloud) => {
+    setReadAloudState(v)
+    try { localStorage.setItem('leargas.readAloud', v) } catch { /* private window */ }
+  }, [])
   const inflight = useRef<AbortController | null>(null)
   const nextId = useRef(1)
   const speaker = useSpeaker()
@@ -139,7 +151,7 @@ export function useSession() {
         setAnswer(a)
         setActiveEntry(id)
         setLog((l) => [{ id, drawing: selected, region, areaMode, answer: a, at: new Date() }, ...l].slice(0, 60))
-        if (spoken) void speak(speakableAnswer(a))
+        if (voice && (readAloud === 'always' || (spoken && readAloud === 'spoken'))) void speak(speakableAnswer(a))
       } catch (e) {
         if (!ctrl.signal.aborted && (e as Error).name !== 'AbortError') {
           setAnswer(null)
@@ -153,7 +165,7 @@ export function useSession() {
         }
       }
     },
-    [selected, engine, region, areaMode, stopSpeech, speak],
+    [selected, engine, region, areaMode, stopSpeech, speak, voice, readAloud],
   )
 
   /** Bring back an earlier answer, with its drawing and region. */
@@ -194,7 +206,7 @@ export function useSession() {
     region, changeRegion, selectingRegion, setSelectingRegion,
     areaMode, changeAreaMode,
     log, activeEntry, reopen,
-    voice, speaker,
+    voice, speaker, readAloud, setReadAloud,
   }
 }
 
