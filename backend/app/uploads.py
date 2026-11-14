@@ -47,7 +47,8 @@ def _validate(path: Path) -> str:
         if path.suffix == ".pdf":
             import fitz
 
-            with fitz.open(path) as doc:
+            # from bytes: a file handle left open by a failed parse blocks cleanup on Windows
+            with fitz.open(stream=path.read_bytes(), filetype="pdf") as doc:
                 if not doc.is_pdf or doc.needs_pass or not len(doc):
                     raise ValueError("PDF is empty or password protected")
                 page = doc[0]
