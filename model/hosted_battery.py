@@ -139,10 +139,11 @@ def _ask(base: str, path: str, question: str) -> dict:
 
 
 def _stoa_ok(ans, gold: float, tol: float = 0.02) -> bool:
-    try:
-        v = float(ans)
-    except (TypeError, ValueError):
+    import re  # noqa: PLC0415
+    m = re.search(r"-?\d[\d,]*\.?\d*", str(ans)) if ans is not None else None  # 16" / "26,562 SF"
+    if not m:
         return False
+    v = float(m.group().replace(",", ""))
     # unit slips (m vs mm, SF vs m2) are not the point here: accept the value in any common scale
     return any(abs(v * k - gold) <= tol * abs(gold) for k in (1, 1000, 0.001, 304.8, 10.7639, 1 / 10.7639))
 

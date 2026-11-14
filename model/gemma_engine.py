@@ -52,7 +52,32 @@ def image_for(path: str) -> Path | None:
         return abs_path(path) if path.startswith("data/") else p
     if source_of(path) == "swiss_dwellings" and p.suffix.lower() in (".pdf", ".dxf"):
         return abs_path(str(p.with_suffix(".png")).replace("\\", "/"))
+    if p.suffix.lower() == ".pdf":  # any other PDF (an upload): its page-1 PNG twin, rendered if missing
+        pdf = abs_path(path) if path.startswith("data/") else p
+        return pdf_png_twin(pdf)
     return None
+
+
+def pdf_png_twin(pdf: Path, dpi: int = 150) -> Path | None:
+    """`<stem>.png` beside the PDF (page 1 at 150 dpi, as upload_groups does), or None without PyMuPDF.
+    The router's raster_image() finds the same twin, so both sides agree on what Gemma reads."""
+    twin = pdf.with_suffix(".png")
+    if twin.is_file():
+        return twin
+    try:
+        import fitz  # noqa: PLC0415  (PyMuPDF: backend dependency, optional here)
+    except ImportError:
+        return None
+    try:
+        with fitz.open(pdf) as doc:
+            if len(doc) == 0:
+                return None
+            tmp = twin.with_name(twin.stem + ".tmp.png")
+            doc[0].get_pixmap(dpi=dpi).save(tmp)
+            os.replace(tmp, twin)
+        return twin
+    except Exception:  # noqa: BLE001  (unreadable PDF: Gemma just has nothing to read)
+        return None
 
 
 @lru_cache(maxsize=8)
