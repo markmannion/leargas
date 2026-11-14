@@ -136,7 +136,7 @@ export function ClarRegister({ drawings, selected, loading, error, onSelect, onU
         {up.error ? <span className="cr-err">{up.error}</span>
           : up.message ? up.message
             : over ? 'Drop to add these files to the register.'
-              : 'Drop PDF, PNG, JPEG, DXF or IFC files here, 25 MB each. Files with the same name are paired, so plan.pdf with plan.dxf is checked against the DXF.'}
+              : 'Drop PDF, PNG, JPEG, DXF or IFC files here, up to 60 MB each. Files with the same name are paired, so plan.pdf with plan.dxf is checked against the DXF.'}
       </footer>
     </div>
   )
