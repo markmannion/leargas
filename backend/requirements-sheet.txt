@@ -1,0 +1,9 @@
+# Sheet reader (app/sheet): text + lines on large drawing sheets. Optional: without these the
+# router skips the sheet reader and uses the other engines.
+-r requirements.txt
+numpy>=1.26
+pillow>=10
+opencv-python-headless>=4.9
+pymupdf>=1.24
+rapidocr>=3.0
+onnxruntime>=1.18

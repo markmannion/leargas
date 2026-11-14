@@ -1002,6 +1002,9 @@ button {
 .mark.src-model {
   --c: var(--orange);
 }
+.mark.src-sheet {
+  --c: var(--green, #1a9e5f);
+}
 
 .mark-area {
   fill: var(--c);
@@ -1296,6 +1299,9 @@ button {
 }
 .swatch.src-model {
   background: var(--orange);
+}
+.swatch.src-sheet {
+  background: var(--green, #1a9e5f);
 }
 
 .facts dd .swatch {

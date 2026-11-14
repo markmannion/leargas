@@ -10,10 +10,11 @@ interface Props {
 }
 
 const ENGINES: { id: Engine; label: string; title: string }[] = [
-  { id: 'auto', label: 'Auto', title: 'Router: geometry when a vector twin exists, otherwise the fine-tuned model' },
+  { id: 'auto', label: 'Auto', title: 'Router: geometry when a vector twin exists, the sheet reader for large sheets, otherwise the fine-tuned model' },
   { id: 'geometry', label: 'Geometry', title: 'DXF / IFC geometry engine only' },
   { id: 'gemma_ft', label: 'Gemma FT', title: 'Fine-tuned Gemma only' },
   { id: 'gemma_base', label: 'Gemma Base', title: 'Base Gemma only (the before number)' },
+  { id: 'sheet', label: 'Sheet', title: 'Sheet reader only: text, tags, room outlines and scale read from a large sheet' },
 ]
 
 export function TopBar({ engine, onEngine, health, healthError, title, subtitle }: Props) {

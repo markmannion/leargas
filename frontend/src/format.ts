@@ -15,6 +15,7 @@ export const SOURCE_LABEL: Record<Source, string> = {
   geometry_ifc: 'Geometry · IFC',
   gemma_ft: 'Gemma · fine-tuned',
   gemma_base: 'Gemma · base',
+  sheet_reader: 'Sheet reader · text + lines',
   mock: 'Mock',
 }
 
