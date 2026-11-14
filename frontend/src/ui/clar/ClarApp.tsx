@@ -129,6 +129,24 @@ export default function ClarApp() {
 
 const today = new Date().toLocaleDateString('en-IE', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '.')
 
+// Speech is louder than this on the meter's 0-1 scale; quieter is room noise.
+const HEARING = 0.2
+
+/** Live bars that move with the microphone, so you can see it is hearing you. */
+function VoiceMeter({ level }: { level: number }) {
+  const hearing = level >= HEARING
+  return (
+    <span className={`vm${hearing ? ' is-hearing' : ''}`} role="status">
+      <span className="vm-bars" aria-hidden="true">
+        {[0.55, 0.85, 1, 0.85, 0.55].map((w, i) => (
+          <i key={i} style={{ transform: `scaleY(${Math.max(0.18, Math.min(1, level * 1.6 * w))})` }} />
+        ))}
+      </span>
+      {hearing ? 'Hearing you' : 'Listening…'} · Stop when done
+    </span>
+  )
+}
+
 type Light = 'ready' | 'down' | 'checking' | 'off' | 'mock'
 
 const LIGHT_WORD: Record<Light, string> = { ready: 'Ready', down: 'Offline', checking: 'Checking', off: 'Not set up', mock: 'Mock' }
@@ -224,7 +242,7 @@ function AskCell({ s }: { s: Session }) {
           <label htmlFor="cl-q" className="cs-label">Ask a question</label>
           {d && <span className="cs-q-key"><kbd>/</kbd> to type</span>}
         </div>
-        <div className={`cs-q${listening ? ' is-listening' : ''}${!d ? ' is-off' : ''}`} onClick={() => box.current?.focus()}>
+        <div className={`cs-q${listening ? ' is-listening' : ''}${listening && mic.level >= HEARING ? ' is-hearing' : ''}${!d ? ' is-off' : ''}`} onClick={() => box.current?.focus()}>
           <textarea id="cl-q" ref={box} rows={2} value={text} disabled={!d}
             placeholder={!d ? 'Open a drawing first'
               : listening ? 'Listening… speak your question'
@@ -243,7 +261,7 @@ function AskCell({ s }: { s: Session }) {
             )}
             <span className="cs-q-hint">
               {mic.error ? <span className="cs-warn">{mic.error}</span>
-                : listening ? 'Press Stop when you’re done'
+                : listening ? <VoiceMeter level={mic.level} />
                   : 'Any language · Enter to ask'}
             </span>
             <button type="submit" className="cs-btn cs-go" disabled={blocked || !text.trim()}>{s.busy ? 'Asking…' : 'Ask'}</button>

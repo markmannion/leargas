@@ -755,3 +755,12 @@ button:disabled { cursor: default; }
   .cs { border-left: 1.5px solid var(--ink); border-top: 0; }
   .cr-add { margin-left: 0; }
 }
+
+/* Voice meter: shown in the question bar while recording; the bars follow the microphone level. */
+.vm { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-2); }
+.vm.is-hearing { color: var(--red); font-weight: 600; }
+.vm-bars { display: inline-flex; align-items: center; gap: 2px; height: 14px; }
+.vm-bars i { display: block; width: 3px; height: 14px; background: var(--ink-3); transform-origin: center; transition: transform 70ms linear; }
+.vm.is-hearing .vm-bars i { background: var(--red); }
+.cs-q.is-hearing, .cs-q.is-hearing:hover, .cs-q.is-hearing:focus-within { box-shadow: 0 0 0 3px rgba(205, 42, 29, 0.4); }
+@media (prefers-reduced-motion: reduce) { .vm-bars i { transition: none; } }
