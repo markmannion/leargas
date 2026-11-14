@@ -3,7 +3,7 @@
 **Ask a question about a construction drawing. Get the answer, and see the proof on the sheet.**
 
 Léargas is the Irish word for insight. You open a drawing (a PDF, a scan, a photo, a CAD file or a BIM model)
-and ask, in any language, "How many doors are on this floor?" or "What is the area of the library?".
+and ask, "How many doors are on this floor?" or "What is the area of the library?".
 Léargas answers, marks the evidence on the drawing, and tells you how sure it is.
 If it cannot find evidence, it says **Cannot verify**. It does not guess.
 
@@ -17,7 +17,7 @@ We made Léargas for the Stoa track at Junction 2026.
 
 1. Open a drawing from the register, or upload your own (PNG, JPG, PDF, DXF or IFC, up to 60 MB).
    You can also drop files on the sheet.
-2. Type a question (English, German, French, Finnish and the dataset's other languages), or say it.
+2. Type a question or say it.
 3. Léargas gives the answer, its status, and the evidence. The evidence is highlighted on the sheet:
    solid lines are measured, dashed lines are estimates, dotted lines are read from the sheet's text.
 4. When two engines answer the same question, the cross-check shows both answers side by side.
@@ -136,7 +136,7 @@ There is no setup cost per drawing: no indexing or embedding step before the fir
 |---|---|
 | **Accuracy** | Exact geometry where a CAD or BIM file exists; a full-size sheet reader for large sheets; a fine-tuned, scan-robust vision model for images. Measured on held-out drawings (see Results). |
 | **Visual reasoning** | Evidence highlighted on the sheet with line styles by source, the geometry-versus-model cross-check, the reason for every status, room and slab breakdown tables, and a numbered register of questions. |
-| **Creativity** | The screen is a drawing sheet: zone references, a title block, a highlighter and revision clouds. Ask about a clouded region only. Ask by voice, or type in any of the dataset's languages. Honest "Cannot verify" with the held-back guess. |
+| **Creativity** | The screen is a drawing sheet: zone references, a title block, a highlighter and revision clouds. Ask about a clouded region only. Ask by voice, or type. Honest "Cannot verify" with the held-back guess. |
 | **Low inference cost** | Most answers need no GPU. The vision model costs about $0.05 per 1,000 answers, shown next to every answer. |
 
 ## Limits
