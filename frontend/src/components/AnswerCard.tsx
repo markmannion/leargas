@@ -25,6 +25,7 @@ export function AnswerCard({ answer, reference, hovered, onHover, speech }: Prop
 
   return (
     <section className={`answer status-${answer.status}`} aria-live="polite">
+      <p className="answered-question">{answer.question}</p>
       <header className="answer-head">
         <span className={`status-pill status-${answer.status}`}>{STATUS_LABEL[answer.status]}</span>
         <span className="answer-head-right">
@@ -65,6 +66,8 @@ export function AnswerCard({ answer, reference, hovered, onHover, speech }: Prop
 
       <p className="status-note">{STATUS_NOTE[answer.status]}</p>
 
+      <details className="answer-details">
+      <summary>How this was checked <span aria-hidden="true">+</span></summary>
       <dl className="facts">
         <div>
           <dt>Source</dt>
@@ -117,6 +120,8 @@ export function AnswerCard({ answer, reference, hovered, onHover, speech }: Prop
         </div>
       )}
 
+      </details>
+
       {answer.evidence.length > 0 && (
         <div className="block">
           <h3 className="block-title">
@@ -125,6 +130,9 @@ export function AnswerCard({ answer, reference, hovered, onHover, speech }: Prop
           <ol className="evidence-list">
             {answer.evidence.map((e, i) => (
               <li
+                tabIndex={0}
+                onFocus={() => onHover(i)}
+                onBlur={() => onHover(null)}
                 key={i}
                 className={hovered === i ? 'active' : undefined}
                 onPointerEnter={() => onHover(i)}
