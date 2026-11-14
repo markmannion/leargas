@@ -49,6 +49,22 @@ Regenerate `contracts/` after schema changes: `cd backend && ../.venv/bin/python
 - `--types count,area` and `--limit N` are for smoke tests. The gold `type` is only sent with `--type-hint`.
 - Scores and run stats (wall time, p50/p95 latency, errors) are written to `<out>.score.json`.
 
+## Demo answer cache (`demo_cache.py`, `app/demo_cache.py`)
+
+With `LEARGAS_DEMO_CACHE=1`, `/ask` first looks the request up in a cache of stored answers, so the demo still works when the Gemma endpoint is down. A hit returns the stored `Answer` unchanged, with the response header `X-Leargas-Cache: hit`. A miss (header `miss`) goes to the live router as usual. `/health` reports the cache path and its entry count.
+
+```bash
+# build it against a live backend (no cache enabled), or drop --api to run the router in-process
+.venv/bin/python backend/demo_cache.py --api http://127.0.0.1:8012 --engines auto,geometry
+# serve it
+LEARGAS_DEMO_CACHE=1 .venv/bin/uvicorn app.main:app --app-dir backend --port 8012
+```
+
+- Questions come from `--questions` (a JSON list or JSONL of `{path | drawing, question, engine?}`). The default is `data/splits/demo_questions.jsonl` from `model/make_demo_set.py`. If that file is missing, or with `--default-set`, the tool uses 10 built-in Swiss and IFC count and area questions in five languages.
+- Entries are keyed on (path, question, engine). Paths drop any prefix before `data/`, questions are NFKC, casefolded and whitespace-collapsed, and a missing engine counts as `auto`. Cache each engine the toggle can send (`--engines`).
+- `cannot_verify` answers are not stored, so a cache built while Gemma was down doesn't pin those questions to an abstention. The exception is rows with `expected: "cannot_verify"`, the deliberately unanswerable ones. A rebuild merges into the existing file (unless you pass `--fresh`) and never replaces an answer with a `cannot_verify`.
+- The file is `data/demo_cache.json` (gitignored) or `LEARGAS_DEMO_CACHE_PATH`. The server reloads it when it changes, so a rebuild needs no restart. Rows that have a gold answer are scored as they are cached.
+
 ## Question → query (`app/query/`)
 
 `parse(question)` turns a question in any dataset language into a structured `Query`, for example `{op: count, target: window, scope: plan}`, which the DXF and IFC engines execute. It tries these in order:

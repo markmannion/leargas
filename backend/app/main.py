@@ -4,6 +4,9 @@ Mock mode (LEARGAS_MOCK=1): if the (path, question) pair is in questions.jsonl, 
 with placeholder evidence (status=verified, source=mock); otherwise cannot_verify. Kept for frontend
 work without the engines installed. Never used for evaluation.
 
+Demo cache (LEARGAS_DEMO_CACHE=1): answers stored by backend/demo_cache.py are returned first, with
+header X-Leargas-Cache: hit; misses go to the router (or mock) as usual. See app/demo_cache.py.
+
 Run:  uvicorn app.main:app --reload --app-dir backend
 """
 
@@ -15,9 +18,10 @@ import time
 from functools import lru_cache
 from typing import Dict, Tuple
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 
+from . import demo_cache
 from . import router as qa_router
 from .drawings import questions_path, router as drawings_router
 from .router import _guess_type
@@ -71,8 +75,12 @@ def _mock_evidence(n: int) -> list:
 @app.get("/health")
 def health() -> dict:
     mode = "mock" if _mock() else "live"
-    return {"ok": True, "mode": mode, "gemma": mode == "live" and qa_router.gemma_available(),
-            "gold_questions_loaded": len(_gold())}
+    out = {"ok": True, "mode": mode, "gemma": mode == "live" and qa_router.gemma_available(),
+           "gold_questions_loaded": len(_gold())}
+    if demo_cache.enabled():
+        out["demo_cache"] = {"path": str(demo_cache.cache_path()),
+                             "entries": len(demo_cache.entries(demo_cache.cache_path()))}
+    return out
 
 
 def _mock() -> bool:
@@ -86,7 +94,13 @@ def schema() -> dict:
 
 
 @app.post("/ask", response_model=Answer)
-def ask(req: AskRequest) -> Answer:
+def ask(req: AskRequest, response: Response) -> Answer:
+    if demo_cache.enabled():
+        hit = demo_cache.lookup(req.path, req.question, req.engine)
+        if hit is not None:
+            response.headers["X-Leargas-Cache"] = "hit"
+            return Answer.model_validate({**hit, "path": req.path, "question": req.question})
+        response.headers["X-Leargas-Cache"] = "miss"
     if not _mock():
         return qa_router.route(req)
     return _mock_ask(req)
