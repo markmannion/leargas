@@ -37,6 +37,18 @@ Regenerate `contracts/` after schema changes: `cd backend && ../.venv/bin/python
 - `--split` matches drawings by `data/<source>/<stem>`, so holding out a `.pdf` also holds out its `.dxf`/`.png` twin.
 - Breaks results down by type, source and extension. Use `from score import score_one` to score in-process.
 
+## End-to-end eval
+
+```bash
+.venv/bin/python backend/eval_run.py --gold datasets/junction-dataset/questions.jsonl --split heldout.txt --out runs/auto.jsonl
+```
+
+- Sends every gold question on the held-out drawings to `POST /ask` (`--api`, default `http://127.0.0.1:8000`, or `LEARGAS_API`) with `--concurrency` requests in flight (default 16), then prints the `score.py` report.
+- `--engine auto|geometry|gemma_ft|gemma_base` picks the router path, so base vs fine-tuned is one flag.
+- Answers are appended as they arrive, so `--resume` continues an interrupted run. Failed requests go to `<out>.errors.jsonl` and score as missing.
+- `--types count,area` and `--limit N` are for smoke tests. The gold `type` is only sent with `--type-hint`.
+- Scores and run stats (wall time, p50/p95 latency, errors) are written to `<out>.score.json`.
+
 ## Question → query (`app/query/`)
 
 `parse(question)` turns a question in any dataset language into a structured `Query`, for example `{op: count, target: window, scope: plan}`, which the DXF and IFC engines execute. It tries these in order:
