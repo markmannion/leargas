@@ -14,6 +14,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import multiprocessing
+import os
 import random
 from pathlib import Path
 
@@ -58,30 +60,44 @@ def main() -> None:
     ap.add_argument("--img-dir", required=True)
     ap.add_argument("--frac", type=float, default=0.5)
     ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) // 2))
     a = ap.parse_args()
 
     rows = load_jsonl(Path(a.data))
     img_dir = Path(a.img_dir).expanduser()
     img_dir.mkdir(parents=True, exist_ok=True)
     rng = random.Random(a.seed)
-    n_aug = 0
+    out_rows, jobs = [], []
+    for r in rows:
+        if is_heldout(r["image"]):
+            raise SystemExit(f"held-out drawing in training data: {r['image']}")
+        if rng.random() < a.frac:
+            seed = int(hashlib.md5(f"{a.seed}:{r['id']}".encode()).hexdigest()[:8], 16)
+            dst = img_dir / f"{r['id']}.png"
+            if not dst.exists():
+                jobs.append((r["image"], str(dst), seed))
+            r = {**r, "image": str(dst), "aug_of": r["image"]}
+        out_rows.append(r)
+    with multiprocessing.Pool(a.workers) as pool:
+        for i, _ in enumerate(pool.imap_unordered(_make, jobs, chunksize=4), 1):
+            if i % 500 == 0:
+                print(f"  {i}/{len(jobs)} images", flush=True)
     with open(a.out, "w", encoding="utf-8") as f:
-        for r in rows:
-            if is_heldout(r["image"]):
-                raise SystemExit(f"held-out drawing in training data: {r['image']}")
-            if rng.random() < a.frac:
-                seed = int(hashlib.md5(f"{a.seed}:{r['id']}".encode()).hexdigest()[:8], 16)
-                dst = img_dir / f"{r['id']}.png"
-                if not dst.exists():
-                    src = Image.open(abs_path(r["image"]))
-                    if src.mode in ("RGBA", "LA", "P"):
-                        src = src.convert("RGBA")
-                        src = Image.alpha_composite(Image.new("RGBA", src.size, (255, 255, 255, 255)), src)
-                    degrade(src, random.Random(seed)).save(dst)
-                r = {**r, "image": str(dst), "aug_of": r["image"]}
-                n_aug += 1
+        for r in out_rows:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
-    print(f"wrote {a.out}: {len(rows)} rows, {n_aug} augmented -> {img_dir}")
+    n_aug = sum("aug_of" in r for r in out_rows)
+    print(f"wrote {a.out}: {len(rows)} rows, {n_aug} augmented ({len(jobs)} new images) -> {img_dir}")
+
+
+def _make(job: tuple[str, str, int]) -> None:
+    rel, dst, seed = job
+    src = Image.open(abs_path(rel))
+    if src.mode in ("RGBA", "LA", "P"):
+        src = src.convert("RGBA")
+        src = Image.alpha_composite(Image.new("RGBA", src.size, (255, 255, 255, 255)), src)
+    tmp = dst + ".tmp.png"
+    degrade(src, random.Random(seed)).save(tmp)
+    os.replace(tmp, dst)  # a killed run never leaves a half-written image behind
 
 
 if __name__ == "__main__":
