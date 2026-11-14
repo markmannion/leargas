@@ -18,7 +18,7 @@ ORDER = ["prior", "gemma-e2b", "gemma-base", "gemma-26b", "gemma-ft", "gemma-ft-
 def load_all() -> dict:
     merged: dict = {}
     for p in sorted(RESULTS.glob("*.json")):
-        if p.name in ("sweep.json", "calibration.json", "points.json", "sweep_demo.json"):
+        if p.name in ("sweep.json", "points.json", "sweep_demo.json") or p.name.startswith("calibration"):
             continue
         try:
             data = json.loads(p.read_text(encoding="utf-8"))
