@@ -7,6 +7,10 @@
 # Needs HF_TOKEN and MODEL_API_KEY in ~/.bt_env (from setup_box.sh).
 set -euo pipefail
 [ -f ~/.bt_env ] && . ~/.bt_env
+# Keep the voice key from an earlier run unless a new one is passed.
+if [ -z "${ELEVENLABS_API_KEY:-}" ] && [ -f /etc/leargas.env ]; then
+  ELEVENLABS_API_KEY=$(grep '^ELEVENLABS_API_KEY=' /etc/leargas.env | cut -d= -f2-)
+fi
 : "${HF_TOKEN:?export HF_TOKEN (read access to leargas/junction-dataset)}"
 : "${LEARGAS_DOMAIN:?set LEARGAS_DOMAIN, the box IP with dashes plus .sslip.io}"
 export PATH="$HOME/.local/bin:$PATH"
