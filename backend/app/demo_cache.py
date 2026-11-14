@@ -82,7 +82,7 @@ def write(path: Path, data: dict) -> None:
 _loaded: Dict[str, Tuple[float, Dict[str, dict]]] = {}
 
 
-def _entries(path: Path) -> Dict[str, dict]:
+def entries(path: Path) -> Dict[str, dict]:
     """Entries of `path`, reloaded when the file changes (rebuild without restarting the server)."""
     try:
         mtime = path.stat().st_mtime
@@ -100,5 +100,5 @@ def _entries(path: Path) -> Dict[str, dict]:
 
 def lookup(path: str, question: str, engine: Optional[str]) -> Optional[dict]:
     """The cached Answer JSON for this request, or None."""
-    e = _entries(cache_path()).get(key_str(make_key(path, question, engine)))
+    e = entries(cache_path()).get(key_str(make_key(path, question, engine)))
     return None if e is None else e["answer"]

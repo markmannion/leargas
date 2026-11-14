@@ -79,7 +79,7 @@ def health() -> dict:
            "gold_questions_loaded": len(_gold())}
     if demo_cache.enabled():
         out["demo_cache"] = {"path": str(demo_cache.cache_path()),
-                             "entries": len(demo_cache._entries(demo_cache.cache_path()))}
+                             "entries": len(demo_cache.entries(demo_cache.cache_path()))}
     return out
 
 
