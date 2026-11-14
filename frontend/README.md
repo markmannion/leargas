@@ -15,17 +15,13 @@ Run the backend alongside it (from the repo root):
 
 Point the proxy at another backend with `LEARGAS_API=http://host:port npm run dev`, or build against a deployed API with `VITE_API_BASE=https://host npm run build`.
 
-## Layouts
+## Layout
 
-There are three UIs on the same backend. Choose one with `?ui=`:
+The UI is **Clár** (`src/ui/clar/`): the screen is a drawing sheet. Zone references (1–8 across, A–F down) pan and zoom with the drawing. A title strip on the right holds the question, the answer and a register of questions asked. Yellow highlighter marks the evidence, and a red revision cloud marks a region. The line style shows the source: solid is measured, dashed is estimated, dotted is read from text. The **Drawing register** link opens the plan list and uploads.
 
-| URL | Layout |
-|---|---|
-| `/` | The original: floating panels over the drawing (`src/App.tsx`, `src/components/`). |
-| `/?ui=clar` | **Clár**: the screen is a drawing sheet. Zone references (1–8 across, A–F down) pan and zoom with the drawing. A title strip on the right holds the question, the answer and a register of questions asked. Yellow highlighter marks the evidence; a red revision cloud marks a region. The line style shows the source: solid is measured, dashed is estimated, dotted is read from text. |
-| `/?ui=solas` | **Solas**: dark. The question and its answer read as one line across the top. When an answer comes back, the sheet goes dark except the evidence. A sharp edge means the evidence was measured, a soft edge means it was estimated. Nothing accepted, nothing lit. Typing in the question box filters the suggested questions. You can drop files anywhere on the window to upload them. |
+`/?ui=classic` loads the earlier floating-panel UI (`src/App.tsx`, `src/components/`) as a fallback. Both use the same backend calls. Clár's state, pan/zoom and table code is in `src/core/`. The Archivo font is bundled, so nothing is fetched from a CDN.
 
-Both new layouts share `src/core/`: session state (`session.ts`), pan/zoom/region drawing (`viewport.ts`), shape and zone helpers, the drawing catalogue, uploads, and the breakdown tables. Only markup and CSS differ. Each loads its own fonts (Archivo, Atkinson Hyperlegible), which are bundled, so nothing is fetched from a CDN.
+The sections below describe the classic UI's controls. Clár has the same features under different names: "Cloud a region" for Draw a region, "Takeoff: Room areas / Slab areas", and "Checked by" for the engine.
 
 ## What it talks to
 

@@ -1,5 +1,5 @@
-// The app's state and actions, with no markup. Both alternative UIs (ui/clar, ui/solas) render
-// from this hook, so they behave identically to the original App.tsx and differ only in design.
+// The app's state and actions, with no markup. The Clár UI (ui/clar) renders from this hook; it
+// behaves like the classic App.tsx and differs only in design.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api'
 import type { Answer, AreaMode, DatasetQuestion, Drawing, Engine, Health, Region } from '../types'
