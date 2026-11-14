@@ -40,15 +40,28 @@ export function SheetViewer({ src, evidence, page, hovered, onHover, renderNote 
 
   const H = aspect ? BASE_W * aspect : 0
 
+  // Panels float over the canvas; the visible area is the frame minus the insets set in CSS.
+  const insets = useCallback(() => {
+    const el = frame.current
+    const cs = el ? getComputedStyle(el) : null
+    const v = (n: string) => (cs ? parseFloat(cs.getPropertyValue(n)) || 0 : 0)
+    return { t: v('--inset-top'), r: v('--inset-right'), b: v('--inset-bottom'), l: v('--inset-left') }
+  }, [])
+
   const fit = useCallback(() => {
     const el = frame.current
     if (!el || !aspect) return
-    const pad = 32
-    const w = el.clientWidth - pad * 2
-    const h = el.clientHeight - pad * 2
-    const k = Math.min(w / BASE_W, h / (BASE_W * aspect))
-    setView({ k, x: (el.clientWidth - BASE_W * k) / 2, y: (el.clientHeight - BASE_W * aspect * k) / 2 })
-  }, [aspect])
+    const ins = insets()
+    const pad = 24
+    const w = el.clientWidth - ins.l - ins.r - pad * 2
+    const h = el.clientHeight - ins.t - ins.b - pad * 2
+    const k = Math.max(MIN_ZOOM, Math.min(w / BASE_W, h / (BASE_W * aspect)))
+    setView({
+      k,
+      x: ins.l + (el.clientWidth - ins.l - ins.r - BASE_W * k) / 2,
+      y: ins.t + (el.clientHeight - ins.t - ins.b - BASE_W * aspect * k) / 2,
+    })
+  }, [aspect, insets])
 
   useEffect(() => {
     setAspect(null)
@@ -88,8 +101,9 @@ export function SheetViewer({ src, evidence, page, hovered, onHover, renderNote 
   const zoomBy = (f: number) => {
     const el = frame.current
     if (!el) return
-    const mx = el.clientWidth / 2
-    const my = el.clientHeight / 2
+    const ins = insets()
+    const mx = ins.l + (el.clientWidth - ins.l - ins.r) / 2
+    const my = ins.t + (el.clientHeight - ins.t - ins.b) / 2
     setView((v) => {
       const k = clamp(v.k * f, MIN_ZOOM, MAX_ZOOM)
       return { k, x: mx - ((mx - v.x) * k) / v.k, y: my - ((my - v.y) * k) / v.k }
@@ -97,7 +111,7 @@ export function SheetViewer({ src, evidence, page, hovered, onHover, renderNote 
   }
 
   const onPointerDown = (e: React.PointerEvent) => {
-    if (e.button !== 0) return
+    if (e.button !== 0 || (e.target as Element).closest('.hud')) return
     ;(e.target as Element).setPointerCapture?.(e.pointerId)
     drag.current = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }
     setDragging(true)
@@ -124,96 +138,100 @@ export function SheetViewer({ src, evidence, page, hovered, onHover, renderNote 
   const visible = evidence.map((e, i) => ({ e, i })).filter(({ e }) => (e.page ?? 0) === page)
 
   return (
-    <div className="viewer">
-      <div className="viewer-toolbar">
-        <div className="tool-group">
-          <button className="tool" onClick={() => zoomBy(1 / 1.25)} title="Zoom out" aria-label="Zoom out">
-            −
-          </button>
-          <span className="zoom-readout mono">{Math.round(view.k * 100)}%</span>
-          <button className="tool" onClick={() => zoomBy(1.25)} title="Zoom in" aria-label="Zoom in">
-            +
-          </button>
-          <button className="tool text" onClick={fit} title="Fit sheet to view">
-            Fit
-          </button>
-        </div>
-        <label className="toggle">
-          <input type="checkbox" checked={showEvidence} onChange={(e) => setShowEvidence(e.target.checked)} />
-          <span>Evidence layer</span>
-          <span className="count mono">{visible.length}</span>
-        </label>
-      </div>
-
-      <div
-        ref={frame}
-        className={`viewer-frame${dragging ? ' dragging' : ''}`}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerLeave={() => {
-          onPointerUp()
-          setCursor(null)
-        }}
-        onDoubleClick={fit}
-      >
-        {!src && <div className="viewer-empty">Select a drawing from the register.</div>}
-        {src && state === 'error' && (
-          <div className="viewer-empty">
-            The sheet could not be loaded.
-            <br />
-            <span className="muted">Is the backend running, and is the drawing available locally?</span>
-          </div>
-        )}
-        {src && state === 'loading' && <div className="viewer-empty muted">Loading sheet…</div>}
-
-        {src && (
-          <div
-            className="sheet"
-            style={{
-              width: BASE_W,
-              height: H || undefined,
-              transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})`,
-              visibility: state === 'ready' ? 'visible' : 'hidden',
+    <div
+      ref={frame}
+      className={`viewer-frame${dragging ? ' dragging' : ''}`}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerLeave={() => {
+        onPointerUp()
+        setCursor(null)
+      }}
+      onDoubleClick={(e) => !(e.target as Element).closest('.hud') && fit()}
+    >
+      {src && (
+        <div
+          className="sheet"
+          style={{
+            width: BASE_W,
+            height: H || undefined,
+            transform: `translate3d(${view.x}px, ${view.y}px, 0) scale(${view.k})`,
+            visibility: state === 'ready' ? 'visible' : 'hidden',
+          }}
+        >
+          <img
+            key={src}
+            src={src}
+            alt="Drawing sheet"
+            draggable={false}
+            decoding="async"
+            onLoad={(e) => {
+              const img = e.currentTarget
+              setAspect(img.naturalWidth ? img.naturalHeight / img.naturalWidth : 1)
+              setState('ready')
             }}
-          >
-            <img
-              key={src}
-              src={src}
-              alt="Drawing sheet"
-              draggable={false}
-              onLoad={(e) => {
-                const img = e.currentTarget
-                setAspect(img.naturalWidth ? img.naturalHeight / img.naturalWidth : 1)
-                setState('ready')
-              }}
-              onError={() => setState('error')}
-            />
-            {aspect && showEvidence && (
-              <svg className="overlay" viewBox={`0 0 ${BASE_W} ${H}`} width={BASE_W} height={H}>
-                {visible.map(({ e, i }) => (
-                  <EvidenceMark
-                    key={i}
-                    ev={e}
-                    index={i}
-                    w={BASE_W}
-                    h={H}
-                    k={view.k}
-                    active={hovered === i}
-                    dimmed={hovered !== null && hovered !== i}
-                    onHover={onHover}
-                  />
-                ))}
-              </svg>
-            )}
-          </div>
+            onError={() => setState('error')}
+          />
+          {aspect && showEvidence && (
+            <svg className="overlay" viewBox={`0 0 ${BASE_W} ${H}`} width={BASE_W} height={H}>
+              {visible.map(({ e, i }) => (
+                <EvidenceMark
+                  key={i}
+                  ev={e}
+                  index={i}
+                  w={BASE_W}
+                  h={H}
+                  k={view.k}
+                  active={hovered === i}
+                  dimmed={hovered !== null && hovered !== i}
+                  onHover={onHover}
+                />
+              ))}
+            </svg>
+          )}
+        </div>
+      )}
+
+      <div className="viewer-empty">
+        {!src && <span>Choose a drawing to begin.</span>}
+        {src && state === 'loading' && <span className="muted">Loading drawing…</span>}
+        {src && state === 'error' && (
+          <span>
+            This drawing couldn’t be loaded.
+            <br />
+            <span className="muted">Check that the backend is running and the file is available.</span>
+          </span>
         )}
       </div>
 
-      <div className="viewer-status mono">
-        <span>{cursor ? `x ${cursor[0].toFixed(3)}  y ${cursor[1].toFixed(3)}` : 'x —  y —'}</span>
+      <div className="hud hud-status glass">
+        <span className="mono">{cursor ? `${cursor[0].toFixed(3)}, ${cursor[1].toFixed(3)}` : '–, –'}</span>
         {renderNote && <span className="render-note">{renderNote}</span>}
-        <span className="hint">Drag to pan · scroll to zoom · double-click to fit</span>
+      </div>
+
+      <div className="hud hud-tools glass" role="toolbar" aria-label="View">
+        <button className="hud-btn" onClick={() => zoomBy(1 / 1.25)} aria-label="Zoom out" title="Zoom out">
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
+            <path d="M3 8h10" />
+          </svg>
+        </button>
+        <span className="zoom-readout">{Math.round(view.k * 100)}%</span>
+        <button className="hud-btn" onClick={() => zoomBy(1.25)} aria-label="Zoom in" title="Zoom in">
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
+            <path d="M3 8h10M8 3v10" />
+          </svg>
+        </button>
+        <button className="hud-btn text" onClick={fit} title="Fit drawing to window">
+          Fit
+        </button>
+        <span className="hud-sep" aria-hidden />
+        <label className="switch">
+          <input type="checkbox" checked={showEvidence} onChange={(e) => setShowEvidence(e.target.checked)} />
+          <span className="switch-track" aria-hidden />
+          <span>Evidence</span>
+          <span className="switch-count">{visible.length}</span>
+        </label>
       </div>
     </div>
   )

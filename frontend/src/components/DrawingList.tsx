@@ -30,15 +30,15 @@ export function DrawingList({ drawings, total, selected, error, onSelect }: Prop
   }, [filtered])
 
   return (
-    <aside className="register">
+    <aside className="register glass">
       <div className="register-head">
         <h2 className="panel-title">
-          Drawing register <span className="mono muted">{total}</span>
+          Drawings <span className="muted">{total.toLocaleString()}</span>
         </h2>
         <input
           type="search"
           className="search"
-          placeholder="Filter by site, building, floor…"
+          placeholder="Search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
@@ -52,7 +52,7 @@ export function DrawingList({ drawings, total, selected, error, onSelect }: Prop
         )}
         {groups.map(([collection, items]) => (
           <div key={collection} className="register-group">
-            <div className="group-label mono">{collection}</div>
+            <div className="group-label">{collection.replace(/_/g, ' ')}</div>
             <ul>
               {items.map((d) => (
                 <li key={d.path}>
@@ -61,9 +61,15 @@ export function DrawingList({ drawings, total, selected, error, onSelect }: Prop
                     onClick={() => onSelect(d)}
                     title={d.path}
                   >
-                    <span className="sheet-name mono">{prettyName(d.name)}</span>
-                    <span className="sheet-meta mono">
-                      {RENDER_LABEL[d.render]} · {d.questions.length}q
+                    <span className="sheet-text">
+                      <span className="sheet-name">{prettyName(d.name)[0]}</span>
+                      <span className="sheet-sub">{prettyName(d.name)[1]}</span>
+                    </span>
+                    <span className="sheet-meta">
+                      <span className="badge">{RENDER_LABEL[d.render]}</span>
+                      <span className="qcount" title={`${d.questions.length} questions`}>
+                        {d.questions.length}
+                      </span>
                     </span>
                   </button>
                 </li>
@@ -79,8 +85,8 @@ export function DrawingList({ drawings, total, selected, error, onSelect }: Prop
   )
 }
 
-// site1000_bldg2082_floor9385 → S1000 · B2082 · F9385
-function prettyName(name: string) {
+// site1000_bldg2082_floor9385 → ["Site 1000", "Building 2082 · Floor 9385"]
+function prettyName(name: string): [string, string] {
   const m = name.match(/^site(\d+)_bldg(\d+)_floor(\d+)$/)
-  return m ? `S${m[1]} · B${m[2]} · F${m[3]}` : name
+  return m ? [`Site ${m[1]}`, `Building ${m[2]} · Floor ${m[3]}`] : [name, '']
 }

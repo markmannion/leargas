@@ -96,39 +96,35 @@ export default function App() {
 
   return (
     <div className="app">
-      <TopBar engine={engine} onEngine={setEngine} health={health} healthError={healthError} />
+      <SheetViewer
+        src={selected ? api.drawingUrl(selected.path) : null}
+        evidence={answer?.evidence ?? []}
+        page={0}
+        hovered={hovered}
+        onHover={setHovered}
+        renderNote={selected ? RENDER_NOTE[selected.render] : null}
+      />
 
-      <div className="workspace">
-        <DrawingList
-          drawings={drawings}
-          total={total}
-          selected={selected?.path ?? null}
-          error={listError}
-          onSelect={select}
-        />
+      <TopBar
+        engine={engine}
+        onEngine={setEngine}
+        health={health}
+        healthError={healthError}
+        title={selected?.name ?? null}
+        subtitle={selected ? selected.collection.replace(/_/g, ' ') : null}
+      />
 
-        <main className="stage">
-          <div className="stage-head">
-            <div className="stage-title">
-              <span className="mono muted">{selected?.collection ?? '—'}</span>
-              <h1 className="mono">{selected?.name ?? 'No drawing selected'}</h1>
-            </div>
-            {selected && <span className="mono muted small path">{selected.path}</span>}
-          </div>
-          <SheetViewer
-            src={selected ? api.drawingUrl(selected.path) : null}
-            evidence={answer?.evidence ?? []}
-            page={0}
-            hovered={hovered}
-            onHover={setHovered}
-            renderNote={selected ? RENDER_NOTE[selected.render] : null}
-          />
-        </main>
+      <DrawingList
+        drawings={drawings}
+        total={total}
+        selected={selected?.path ?? null}
+        error={listError}
+        onSelect={select}
+      />
 
-        <aside className="inspector">
-          <AskPanel key={selected?.path ?? 'none'} drawing={selected} busy={busy} onAsk={ask}>
+      <aside className="inspector glass">
+        <AskPanel key={selected?.path ?? 'none'} drawing={selected} busy={busy} onAsk={ask}>
           <div className="result">
-            {answer && <p className="asked">“{answer.question}”</p>}
             {askError && (
               <div className="ask-error">
                 <strong>Request failed.</strong> {askError}
@@ -138,15 +134,14 @@ export default function App() {
               <AnswerCard answer={answer} reference={reference} hovered={hovered} onHover={setHovered} />
             )}
             {!answer && !askError && (
-              <p className="result-empty muted">
-                Ask a question about the sheet. The answer comes back with the items it counted or measured, marked on
-                the drawing.
+              <p className="result-empty">
+                Ask about anything on the drawing. Answers come back with the items counted or measured, marked on
+                the plan.
               </p>
             )}
           </div>
-          </AskPanel>
-        </aside>
-      </div>
+        </AskPanel>
+      </aside>
     </div>
   )
 }
