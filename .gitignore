@@ -161,10 +161,20 @@ datasets/
 junction-dataset-preview/
 
 # Python
-.venv/
 __pycache__/
 *.pyc
+.venv/
 .pytest_cache/
 
 # Generated from the dataset (build with: python -m app.query.build_templates)
 backend/data/
+
+# Dataset-derived files (Junction-only licence; the repo is public)
+data/
+
+# Internal docs and planning notes (not committed)
+docs/
+blueprint-trace-build-plan.md
+mark-tasks.md
+who-does-what.md
+infra/verda.local.md

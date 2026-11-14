@@ -1,0 +1,30 @@
+[
+  {
+    "model": "gemma-e2b",
+    "label": "Gemma 4 E2B base",
+    "acc": 0.31,
+    "usd_per_1k": 0.12,
+    "fine_tuned": false
+  },
+  {
+    "model": "gemma-base",
+    "label": "Gemma 4 E4B base",
+    "acc": 0.38,
+    "usd_per_1k": 0.19,
+    "fine_tuned": false
+  },
+  {
+    "model": "gemma-26b",
+    "label": "Gemma 4 26B A4B base",
+    "acc": 0.47,
+    "usd_per_1k": 0.61,
+    "fine_tuned": false
+  },
+  {
+    "model": "gemma-ft",
+    "label": "Gemma 4 E4B fine-tuned",
+    "acc": 0.71,
+    "usd_per_1k": 0.19,
+    "fine_tuned": true
+  }
+]
