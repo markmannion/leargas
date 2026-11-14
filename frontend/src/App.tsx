@@ -66,24 +66,15 @@ export default function App() {
       .catch((e: Error) => setListError(e.message))
   }, [])
 
-  const interrupt = useCallback(() => {
-    inflight.current?.abort()
-    inflight.current = null
-    stopSpeech()
-    setBusy(false)
-    setAskError(null)
-  }, [stopSpeech])
-
-  useEffect(() => () => { inflight.current?.abort() }, [])
-
   const select = useCallback((d: Drawing) => {
-    interrupt()
+    inflight.current?.abort()
+    stopSpeech()
     setSelected(d)
     setAnswer(null)
     setAskError(null)
     setHovered(null)
     history.replaceState(null, '', `#${encodeURIComponent(d.path)}`)
-  }, [interrupt])
+  }, [stopSpeech])
 
   const ask = useCallback(
     async (question: string, spoken = false) => {
@@ -98,7 +89,6 @@ export default function App() {
       try {
         const ref = selected.questions.find((q) => q.question === question)
         const a = await api.ask({ path: selected.path, question, type: ref?.type ?? null, engine }, ctrl.signal)
-        if (ctrl.signal.aborted) return
         setAnswer(a)
         // Questions asked by voice get a spoken answer.
         if (spoken && !ctrl.signal.aborted) void speak(speakableAnswer(a))
@@ -147,16 +137,15 @@ export default function App() {
         onSelect={select}
       />
 
-      <aside className="inspector" aria-label="Ask about the drawing">
-        <AskPanel key={selected?.path ?? 'none'} drawing={selected} busy={busy} onAsk={ask} voice={voice}
-          speaking={speaking} voiceError={speechError ?? askError} onInterrupt={interrupt}>
-          <div className="result" aria-busy={busy}>
+      <aside className="inspector glass">
+        <AskPanel key={selected?.path ?? 'none'} drawing={selected} busy={busy} onAsk={ask} voice={voice}>
+          <div className="result">
             {askError && (
               <div className="ask-error">
                 <strong>Request failed.</strong> {askError}
               </div>
             )}
-            {answer && !busy && (
+            {answer && (
               <AnswerCard
                 answer={answer}
                 reference={reference}
@@ -173,10 +162,10 @@ export default function App() {
                 }
               />
             )}
-            {busy && <p className="result-loading" role="status"><span className="loading-dot" /> Looking closely at the drawing…</p>}
-            {!answer && !askError && !busy && (
+            {!answer && !askError && (
               <p className="result-empty">
-                Your answer will appear here, with the evidence marked on the drawing.
+                Ask about anything on the drawing. Answers come back with the items counted or measured, marked on
+                the plan.
               </p>
             )}
           </div>

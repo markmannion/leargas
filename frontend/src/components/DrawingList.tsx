@@ -30,7 +30,7 @@ export function DrawingList({ drawings, total, selected, error, onSelect }: Prop
   }, [filtered])
 
   return (
-    <aside className="register" aria-label="Drawing library">
+    <aside className="register glass">
       <div className="register-head">
         <h2 className="panel-title">
           Drawings <span className="muted">{total.toLocaleString()}</span>
@@ -38,8 +38,7 @@ export function DrawingList({ drawings, total, selected, error, onSelect }: Prop
         <input
           type="search"
           className="search"
-          placeholder="Find a drawing…"
-          aria-label="Search drawings"
+          placeholder="Search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
@@ -59,11 +58,9 @@ export function DrawingList({ drawings, total, selected, error, onSelect }: Prop
                 <li key={d.path}>
                   <button
                     className={`sheet-row${selected === d.path ? ' on' : ''}`}
-                    aria-current={selected === d.path ? true : undefined}
                     onClick={() => onSelect(d)}
                     title={d.path}
                   >
-                    <svg className="sheet-icon" width="18" height="22" viewBox="0 0 18 22" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 1h8l4 4v16H3zM11 1v5h4M6 11h6M6 15h4" /></svg>
                     <span className="sheet-text">
                       <span className="sheet-name">{prettyName(d.name)[0]}</span>
                       <span className="sheet-sub">{prettyName(d.name)[1]}</span>

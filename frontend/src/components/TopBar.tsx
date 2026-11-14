@@ -26,12 +26,12 @@ export function TopBar({ engine, onEngine, health, healthError, title, subtitle 
   }[status]
 
   return (
-    <header className="topbar">
+    <header className="topbar glass">
       <div className="brand">
-        <svg className="brand-mark" viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M6 5v22h21M12 5v16h15M18 5v10h9" /><path d="M5 5h22v22" opacity=".35" /></svg>
+        <img src="/hackjunction.png" alt="Junction" className="brand-logo" width={28} height={28} />
         <div className="brand-text">
           <span className="brand-name">Léargas</span>
-          <span className="brand-product">Drawing workspace</span>
+          <span className="brand-product">BlueprintTrace</span>
         </div>
       </div>
 
@@ -41,12 +41,20 @@ export function TopBar({ engine, onEngine, health, healthError, title, subtitle 
       </div>
 
       <div className="topbar-right">
-        <label className="engine-control">
-          <span>Answer with</span>
-          <select value={engine} onChange={(e) => onEngine(e.target.value as Engine)} aria-label="Answer engine">
-            {ENGINES.map((e) => <option key={e.id} value={e.id}>{e.id === 'auto' ? 'Automatic' : e.label}</option>)}
-          </select>
-        </label>
+        <div className="seg" role="radiogroup" aria-label="Answer engine">
+          {ENGINES.map((e) => (
+            <button
+              key={e.id}
+              role="radio"
+              aria-checked={engine === e.id}
+              className={engine === e.id ? 'on' : undefined}
+              onClick={() => onEngine(e.id)}
+              title={e.title}
+            >
+              {e.label}
+            </button>
+          ))}
+        </div>
         <span
           className={`api-status ${status}`}
           title={health ? `${health.gold_questions_loaded.toLocaleString()} reference questions loaded` : undefined}
