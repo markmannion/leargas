@@ -112,12 +112,12 @@ export function AskPanel({ drawing, busy, onAsk, voice, region, selectingRegion,
       </div>
       <div className="floor-area-tools">
         <span className="field-label">Slab specifications</span>
-        <p className="scope-help">Group measured slab areas by thickness and reinforcement. Missing specifications keep their area.
+        <p className="scope-help">Group measured slab areas by type: thickness and bars. Missing specifications keep their area.
           {' '}IFC totals cover the model; ask for a named level to narrow them.
           {region && ' Use the whole plan for slab specifications.'}</p>
         <button type="button" className="measure-areas" disabled={!drawing || busy || selectingRegion || !!region}
-          onClick={() => submit('Show slab area grouped by thickness and reinforcement')}>
-          Show slab area by specification
+          onClick={() => submit('Slab area by type (thickness and bars)')}>
+          Show slab area by type
         </button>
       </div>
       <form

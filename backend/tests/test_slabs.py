@@ -92,7 +92,7 @@ def test_ifc_type_properties_occurrence_overrides_and_unknown_area(ifc_file):
     assert unknown.value == 7.75 and unknown.thickness_mm == 200 and unknown.reinforcement is None
     fields = router.reconcile(AskRequest(path="slabs.ifc", question=QUESTION), Query(op="area", target="slab"), [out])
     assert fields["status"] == "partial" and fields["answer"] == 38.5
-    assert "unknown specification" in fields["explanation"]
+    assert "incomplete specification" in fields["explanation"] and "no bar/reinforcement data" in fields["explanation"]
 
 
 def test_ifc_type_layers_explicit_units_and_quantity_units(ifc_file):
@@ -376,3 +376,43 @@ def test_raster_only_slabs_do_not_invent_area_or_reinforcement(tmp_path, monkeyp
     monkeypatch.setattr(router, "gemma_available", lambda: pytest.fail("No scalar model for slabs"))
     out = router.route(AskRequest(path="raster.png", question=QUESTION))
     assert out.status == "cannot_verify" and out.answer is None
+
+
+def test_revit_reference_label_is_not_reinforcement(ifc_file):
+    """Revit writes the type name into Pset_ReinforcementBarPitchOfSlab.Reference on every slab."""
+    import ifcopenshell.api as api
+    f, path = ifc_file
+    typ = entity(f, "IfcSlabType", "Floor:Generic 150mm")
+    pset(f, typ, "Pset_ReinforcementBarPitchOfSlab", Reference="Generic 150mm", Description="floor")
+    layers(f, typ, 150.0)
+    a, b = slab(f, "S1", 4.0), slab(f, "S2", 6.0)
+    api.run("type.assign_type", f, related_objects=[a, b], relating_type=typ)
+    out = takeoff(f, path)
+    assert out.ok, out.reason
+    assert [(g.thickness_mm, g.reinforcement, g.specification_status) for g in out.slab_groups] == [(150, None, "unknown")]
+    assert out.slab_groups[0].slab_types == ["Floor:Generic 150mm"]
+
+
+@pytest.mark.parametrize("question", [
+    "Slab area by type (thickness and bars)", "slab areas by thickness and rebar", "Slab schedule",
+    "Show the slab area per type, thickness and reinforcement",
+])
+def test_slab_type_phrasings_group(question):
+    q = parse(question, use_llm=False).query
+    assert q and q.target == "slab" and q.group_by == "thickness_reinforcement"
+
+
+def test_plain_slab_area_with_breakdown_flag_is_grouped():
+    req = AskRequest(path="data/x/none.pdf", question="What is the slab area?", slab_breakdown=True)
+    assert router.slab_takeoff_requested(req)
+
+
+def test_slab_question_on_plain_sheet_goes_to_sheet_reader(monkeypatch):
+    calls = []
+    monkeypatch.setattr(router, "dxf_twin", lambda rel: None)
+    monkeypatch.setattr(router, "ifc_model", lambda rel: None)
+    monkeypatch.setattr(router, "sheet_applies", lambda rel: True)
+    monkeypatch.setattr(router, "run_sheet", lambda rel, q: calls.append(q) or router.Outcome(
+        router.Source.sheet_reader, reason="no callouts"))
+    router.route(AskRequest(path="data/x/structural.pdf", question="Slab area by type (thickness and bars)"))
+    assert calls == ["Slab area by type (thickness and bars)"]
