@@ -4,6 +4,7 @@
 #   bash infra/serve.sh base                 # dev box: gemma-base on :8001 at 35% GPU (room to train)
 #   bash infra/serve.sh ft <merged_dir_or_hf_repo>   # adds gemma-ft on :8002
 #   bash infra/serve.sh sweep                # sweep box: gemma-e2b on :8003, gemma-26b on :8004
+#   bash infra/serve.sh model <name> <port> <model> [util]   # any model, e.g. gemma-ft-e2b 8005 ~/merged/e2b-run1 0.12
 #   bash infra/serve.sh proxy                # one URL on :8000 that routes by "model" field
 #
 # Every vLLM gets the same API key; the proxy checks it too. Put it in .env as MODEL_API_KEY.
@@ -43,6 +44,7 @@ wait_ready() {  # port
 case "${1:-}" in
   base)  start gemma-base 8001 "${BASE_MODEL:-google/gemma-4-E4B-it}" "$GPU_UTIL"; wait_ready 8001 ;;
   ft)    start gemma-ft 8002 "${2:?merged model dir or private HF repo}" "${FT_UTIL:-$GPU_UTIL}"; wait_ready 8002 ;;
+  model) start "${2:?name}" "${3:?port}" "${4:?model dir or HF repo}" "${5:-$GPU_UTIL}"; wait_ready "$3" ;;
   sweep) start gemma-e2b 8003 google/gemma-4-E2B-it 0.18
          start gemma-26b 8004 google/gemma-4-26B-A4B-it 0.72
          wait_ready 8003; wait_ready 8004 ;;
@@ -53,5 +55,5 @@ case "${1:-}" in
          if [ -n "${ROUTES:-}" ]; then envs+=" ROUTES=${ROUTES@Q}"; fi
          tmux new-window -t serve -n proxy "cd ~/bt && env $envs ~/venv-vllm/bin/python infra/model_proxy.py --port 8000 2>&1 | tee ~/proxy.log"
          sleep 2; echo "proxy on :8000 -> MODEL_BASE_URL=http://<box-ip>:8000/v1" ;;
-  *) echo "usage: $0 base|ft <model>|sweep|proxy"; exit 1 ;;
+  *) echo "usage: $0 base|ft <model>|model <name> <port> <model> [util]|sweep|proxy"; exit 1 ;;
 esac

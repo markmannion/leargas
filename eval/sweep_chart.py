@@ -23,6 +23,7 @@ LABELS = {
     "gemma-ft-run2": "E4B fine-tuned (run 2)",
     "gemma-base": "Gemma 4 E4B base",
     "gemma-e2b": "Gemma 4 E2B base",
+    "gemma-ft-e2b": "Gemma 4 E2B fine-tuned",
     "gemma-26b": "Gemma 4 26B A4B base",
 }
 FT_COLOR, BASE_COLOR = "#2a78d6", "#eb6834"
