@@ -151,6 +151,14 @@ def raster_image(rel: str) -> Optional[Path]:
     if p.suffix.lower() in IMAGE_SUFFIXES and p.is_file():
         return p
     twin = p.with_suffix(".png")
+    if not twin.is_file() and p.suffix.lower() == ".pdf" and p.is_file():
+        try:  # an uploaded PDF: render page 1 once (the same twin /upload makes)
+            _import_model_pkg()
+            from model.gemma_engine import pdf_png_twin
+
+            return pdf_png_twin(p)
+        except Exception:
+            return None
     return twin if twin.is_file() else None
 
 
@@ -435,12 +443,12 @@ def run_gemma(source: Source, image: Optional[Path], question: str,
 
 @lru_cache(maxsize=512)
 def sheet_applies(rel: str) -> bool:
-    """A large sheet the sheet reader should try first: a PDF, or a big raster image."""
+    """A large sheet the sheet reader should try first: a sheet-sized PDF, or a big raster image."""
     p = _abs(rel)
     if not p.is_file():
         return False
     if p.suffix.lower() == ".pdf":
-        return True
+        return _pdf_is_sheet(p)
     if p.suffix.lower() not in IMAGE_SUFFIXES:
         return False
     try:
@@ -451,6 +459,22 @@ def sheet_applies(rel: str) -> bool:
             return max(im.size) >= SHEET_MIN_PX
     except Exception:
         return False
+
+
+def _pdf_is_sheet(p: Path) -> bool:
+    """A PDF page that would render >= SHEET_MIN_PX at 150 dpi (about A2 and up: a drawing sheet).
+    Smaller PDFs (an A4/A3 floor plan) go to Gemma via their PNG twin: on held-out floor plans
+    uploaded as PDF the sheet reader was right 21% of the time, Gemma 80% when it answered."""
+    try:
+        import fitz
+
+        with fitz.open(p) as doc:
+            if len(doc) == 0:
+                return False
+            r = doc[0].rect
+            return max(r.width, r.height) / 72 * 150 >= SHEET_MIN_PX
+    except Exception:
+        return True  # can't tell: keep the old behaviour (sheet reader first)
 
 
 def run_sheet(rel: str, question: str) -> Outcome:
