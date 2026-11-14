@@ -128,20 +128,19 @@ All commands start from the repository root.
 ## How to deploy it
 
 The frontend runs on Vercel. The backend runs on the Verda GPU box, next to the model server.
-A Cloudflare tunnel gives the backend a public https address.
+Caddy gives the backend an https address. The address uses the box IP, for example `1-2-3-4.sslip.io` for the IP 1.2.3.4.
 
-1. On the box, run the backend script. It installs the backend, downloads the dataset and starts the tunnel.
-   It prints the address of the API at the end.
+1. On the box, run the backend script. It installs the backend, downloads the dataset and starts the services.
+   The services start again after a crash or a reboot. Ports 80 and 443 must be open.
 
    ```bash
-   ssh <box> 'bash -s' < infra/serve_backend.sh
+   ssh <box> "LEARGAS_DOMAIN=<box-ip-with-dashes>.sslip.io bash -s" < infra/serve_backend.sh
    ```
 
 2. On Vercel, import this repository. Set the root directory to `frontend`.
-   Add the environment variable `VITE_API_BASE=<the address from step 1>`, then deploy.
+   Add the environment variable `VITE_API_BASE=https://<box-ip-with-dashes>.sslip.io`, then deploy.
 
-To update the backend, run the script again. It keeps the same tunnel address.
-If the box restarts, the address changes. Then update `VITE_API_BASE` on Vercel and redeploy.
+To update the backend, run the script again. The address does not change.
 
 ### Other option: Hugging Face Docker Space (paid plan)
 
