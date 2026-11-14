@@ -5,6 +5,8 @@
 # they restart after a crash and after a reboot. Caddy gets the https certificate itself
 # (ports 80 and 443 must be open). The API is then at https://$LEARGAS_DOMAIN.
 # Needs HF_TOKEN and MODEL_API_KEY in ~/.bt_env (from setup_box.sh).
+# CubiCasa windows/doors/sinks/showers go to the gemma-ft-cc specialist (:8008 via the proxy);
+# LEARGAS_GEMMA_SPECIALIST= (empty) turns that off. Falls back to gemma-ft if it is not served.
 set -euo pipefail
 [ -f ~/.bt_env ] && . ~/.bt_env
 : "${HF_TOKEN:?export HF_TOKEN (read access to leargas/junction-dataset)}"
@@ -42,6 +44,7 @@ LEARGAS_HOME=$HOME/leargas-data
 MODEL_BASE_URL=${MODEL_BASE_URL:-http://127.0.0.1:8000/v1}
 MODEL_API_KEY=${MODEL_API_KEY:-}
 ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY:-}
+LEARGAS_GEMMA_SPECIALIST=${LEARGAS_GEMMA_SPECIALIST-gemma-ft-cc}
 LEARGAS_DATASET_INCLUDE="${LEARGAS_DATASET_INCLUDE:-questions.jsonl README.md data/swiss_dwellings/* data/ifc_models/* data/ifc_bench/* data/cubicasa5k/*}"
 EOF
 umask 022
