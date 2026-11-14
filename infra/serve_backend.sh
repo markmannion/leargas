@@ -49,6 +49,9 @@ MODEL_BASE_URL=${MODEL_BASE_URL:-http://127.0.0.1:8000/v1}
 MODEL_API_KEY=${MODEL_API_KEY:-}
 ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY:-}
 LEARGAS_GEMMA_SPECIALIST=${LEARGAS_GEMMA_SPECIALIST-gemma-ft-cc}
+# gemma-ft on :8002 serves ~/merged/spec-cc-aug (scan/photo-augmented; best on degraded images), so the
+# router reads that model's calibration. Set to gemma-ft if run 1 is served as gemma-ft again.
+LEARGAS_GEMMA_FT_LABEL=${LEARGAS_GEMMA_FT_LABEL-gemma-ft-cc-aug}
 # Whole dataset by default (~12 GB): every collection shows up in the drawing catalogue. Set
 # LEARGAS_DATASET_INCLUDE to space-separated patterns to fetch only part of it.
 LEARGAS_DATASET_INCLUDE="${LEARGAS_DATASET_INCLUDE:-}"

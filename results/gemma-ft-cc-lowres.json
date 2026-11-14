@@ -1,0 +1,126 @@
+{
+  "gemma-ft-cc-lowres": {
+    "heldout_raster": {
+      "n": 1000,
+      "by_source_type": {
+        "ALL": {
+          "n": 1000,
+          "correct": 578,
+          "wrong": 394,
+          "abstained": 28,
+          "text": 0,
+          "acc": 0.578,
+          "acc_answered": 0.5947,
+          "abstain_rate": 0.028
+        },
+        "cubicasa5k/count": {
+          "n": 600,
+          "correct": 426,
+          "wrong": 174,
+          "abstained": 0,
+          "text": 0,
+          "acc": 0.71,
+          "acc_answered": 0.71,
+          "abstain_rate": 0.0
+        },
+        "swiss_dwellings/area_printed": {
+          "n": 66,
+          "correct": 18,
+          "wrong": 48,
+          "abstained": 0,
+          "text": 0,
+          "acc": 0.2727,
+          "acc_answered": 0.2727,
+          "abstain_rate": 0.0
+        },
+        "swiss_dwellings/area_unprinted": {
+          "n": 68,
+          "correct": 1,
+          "wrong": 39,
+          "abstained": 28,
+          "text": 0,
+          "acc": 0.0147,
+          "acc_answered": 0.025,
+          "abstain_rate": 0.4118
+        },
+        "swiss_dwellings/count": {
+          "n": 266,
+          "correct": 133,
+          "wrong": 133,
+          "abstained": 0,
+          "text": 0,
+          "acc": 0.5,
+          "acc_answered": 0.5,
+          "abstain_rate": 0.0
+        }
+      },
+      "by_lang": {
+        "ALL": {
+          "n": 1000,
+          "correct": 578,
+          "wrong": 394,
+          "abstained": 28,
+          "text": 0,
+          "acc": 0.578,
+          "acc_answered": 0.5947,
+          "abstain_rate": 0.028
+        },
+        "lang/de": {
+          "n": 179,
+          "correct": 54,
+          "wrong": 112,
+          "abstained": 13,
+          "text": 0,
+          "acc": 0.3017,
+          "acc_answered": 0.3253,
+          "abstain_rate": 0.0726
+        },
+        "lang/en": {
+          "n": 474,
+          "correct": 288,
+          "wrong": 173,
+          "abstained": 13,
+          "text": 0,
+          "acc": 0.6076,
+          "acc_answered": 0.6247,
+          "abstain_rate": 0.0274
+        },
+        "lang/fi": {
+          "n": 300,
+          "correct": 211,
+          "wrong": 89,
+          "abstained": 0,
+          "text": 0,
+          "acc": 0.7033,
+          "acc_answered": 0.7033,
+          "abstain_rate": 0.0
+        },
+        "lang/fr": {
+          "n": 25,
+          "correct": 14,
+          "wrong": 11,
+          "abstained": 0,
+          "text": 0,
+          "acc": 0.56,
+          "acc_answered": 0.56,
+          "abstain_rate": 0.0
+        },
+        "lang/it": {
+          "n": 22,
+          "correct": 11,
+          "wrong": 9,
+          "abstained": 2,
+          "text": 0,
+          "acc": 0.5,
+          "acc_answered": 0.55,
+          "abstain_rate": 0.0909
+        }
+      },
+      "median_latency_ms": 992.0
+    }
+  },
+  "_meta": {
+    "generated": "2026-11-14 19:05",
+    "scorer": "local"
+  }
+}
