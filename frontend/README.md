@@ -32,7 +32,7 @@ sheet, like a printed A1 sheet with a title strip on the right.
 - **Model lights** (top right): one light per engine, in its pencil colour, with Ready / Checking / Offline.
 - **Drawing**: the open drawing, **Upload a drawing** (PNG, JPG, PDF, DXF or IFC, up to 60 MB) and the
   **Drawing register** (search and filter every drawing and upload).
-- **Question box**: type, or press **Speak** and ask aloud in any language. Press `/` to jump to the box.
+- **Question box**: type in any of the dataset's languages, or press **Speak** and ask aloud. Press `/` to jump to the box.
   Spoken questions are answered aloud.
 - **More ways to ask** (folded): **Cloud a region** to ask about one part of the sheet only (with **Whole rooms**
   or **Exact cut** for areas), and the **Room areas** and **Slab areas** takeoffs.
