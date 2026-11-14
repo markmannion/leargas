@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { Answer, Engine, Source, SourceAnswer } from '../../types'
 import { formatValue } from '../../format'
 import type { GemmaState } from '../../core/session'
@@ -77,21 +78,70 @@ function gap(x: SourceAnswer, y: SourceAnswer): string {
   return `Off by ${pct < 10 ? pct.toFixed(1) : Math.round(pct)}%`
 }
 
-export function CrossCheck({ answer: a, engine, gemma }: { answer: Answer; engine: Engine; gemma?: GemmaState }) {
+export function CrossCheck({ answer: a, engine, gemma, children }: {
+  answer: Answer
+  engine: Engine
+  gemma?: GemmaState
+  children: ReactNode // the result, which the two lanes flow into
+}) {
   const m = side(a, 'measure', engine, gemma)
   const g = side(a, 'model', engine, gemma)
   const v = verdict(a, m, g)
   const used = a.status === 'cannot_verify' ? null : a.source
   return (
-    <section className={`cx is-${v.kind}`} aria-label="Cross-check">
-      <LaneCell s={m} used={used} held={a.status === 'cannot_verify'} />
-      <div className="cx-verdict" role="status">
-        <span className="cx-sign" aria-hidden="true">{{ agree: '=', differ: '≠', single: '·', none: '×' }[v.kind]}</span>
-        <strong>{v.title}</strong>
-        <span>{v.sub}</span>
+    <section className={`cxw is-${v.kind}`} aria-label="Cross-check">
+      <div className="cx">
+        <LaneCell s={m} used={used} held={a.status === 'cannot_verify'} />
+        <div className="cx-verdict" role="status">
+          <span className="cx-sign" aria-hidden="true">{{ agree: '=', differ: '≠', single: '·', none: '×' }[v.kind]}</span>
+          <strong>{v.title}</strong>
+          <span>{v.sub}</span>
+        </div>
+        <LaneCell s={g} used={used} held={a.status === 'cannot_verify'} />
       </div>
-      <LaneCell s={g} used={used} held={a.status === 'cannot_verify'} />
+      <Flow m={flowOf(m, used, v.kind)} g={flowOf(g, used, v.kind)} agree={v.kind === 'agree'} />
+      <div className="cx-result">{children}</div>
     </section>
+  )
+}
+
+// How a lane reaches the result: 'in' feeds it, 'out' answered but was overruled or held back,
+// 'none' had nothing to give.
+type FlowState = 'in' | 'out' | 'none'
+
+function flowOf(s: Side, used: Source | null, kind: Verdict['kind']): FlowState {
+  if (!s.got || s.got.answer == null) return 'none'
+  if (kind === 'agree') return 'in'
+  return used !== null && s.got.source === used ? 'in' : 'out'
+}
+
+// Lane centres in a 0-100 wide box (the strip is a fixed width: lanes 1fr, verdict 84px).
+const X = { measure: 19.4, model: 80.6 }
+
+function Flow({ m, g, agree }: { m: FlowState; g: FlowState; agree: boolean }) {
+  const line = (lane: 'measure' | 'model', st: FlowState) => {
+    const x = X[lane]
+    if (st === 'in') return <path key={lane} className={`cx-f is-${lane}`} d={`M${x} 0 V4 C${x} 22, 50 10, 50 30`} />
+    if (st === 'out') {
+      return (
+        <g key={lane} className={`cx-f is-${lane} is-out`}>
+          <path d={`M${x} 0 V11`} />
+          <path className="cx-x" d={`M${x - 1.1} 12 L${x + 1.1} 17 M${x + 1.1} 12 L${x - 1.1} 17`} />
+        </g>
+      )
+    }
+    return <path key={lane} className={`cx-f is-${lane} is-none`} d={`M${x} 0 V7`} />
+  }
+  const fed = m === 'in' || g === 'in'
+  return (
+    <div className={`cx-flow${fed ? '' : ' is-dry'}`} aria-hidden="true">
+      <svg viewBox="0 0 100 30" preserveAspectRatio="none">
+        {line('measure', m)}
+        {line('model', g)}
+        {agree && <path className="cx-f is-ink" d="M50 0 V30" />}
+      </svg>
+      <span className="cx-arrow" />
+    </div>
   )
 }
 

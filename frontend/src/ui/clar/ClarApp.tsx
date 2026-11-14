@@ -266,18 +266,18 @@ function AnswerCell({ s, answer: a, aspect, showMarks, setShowMarks, onPick }: {
         )}
       </div>
       <p className="ca-q">{a.question}</p>
-      <CrossCheck answer={a} engine={s.engine} gemma={s.gemmaState} />
-
-      <div className="ca-row">
-        <p className={`ca-value${longText ? ' is-text' : ''}`}>
-          <span className="cs-label ca-result">Result</span>
-          {cv ? <span className="ca-num">—</span> : <><span className="ca-num">{num}</span>{unit && <span className="ca-unit">{unit}</span>}</>}
-        </p>
-        <div className="ca-status">
-          <strong>{STATUS[a.status][0]}</strong>
-          <span>{guess ? 'Guess held back' : STATUS[a.status][1]}</span>
+      <CrossCheck answer={a} engine={s.engine} gemma={s.gemmaState}>
+        <div className={`ca-row${longText ? ' is-text' : ''}`}>
+          <p className={`ca-value${longText ? ' is-text' : ''}`}>
+            <span className="cs-label ca-result">Result</span>
+            {cv ? <span className="ca-num">—</span> : <><span className="ca-num">{num}</span>{unit && <span className="ca-unit">{unit}</span>}</>}
+          </p>
+          <div className="ca-status">
+            <strong>{STATUS[a.status][0]}</strong>
+            <span>{guess ? 'Guess held back' : STATUS[a.status][1]}</span>
+          </div>
         </div>
-      </div>
+      </CrossCheck>
 
       <ol className="ca-notes">{notes.map((n, i) => <li key={i}>{n}</li>)}</ol>
       {a.explanation && <p className="ca-expl">{a.explanation}</p>}
