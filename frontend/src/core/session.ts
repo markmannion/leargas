@@ -114,9 +114,9 @@ export function useSession() {
   }, [cancel, resetAnswer])
 
   const ask = useCallback(
-    async (question: string, opts: { floorAreas?: boolean } = {}) => {
+    async (question: string, opts: { floorAreas?: boolean; spoken?: boolean } = {}) => {
       if (!selected) return
-      const { floorAreas = false } = opts
+      const { floorAreas = false, spoken = false } = opts
       inflight.current?.abort()
       stopSpeech()
       const ctrl = new AbortController()
@@ -139,7 +139,7 @@ export function useSession() {
         setAnswer(a)
         setActiveEntry(id)
         setLog((l) => [{ id, drawing: selected, region, areaMode, answer: a, at: new Date() }, ...l].slice(0, 60))
-        if (voice) void speak(speakableAnswer(a)) // every answer is read aloud
+        if (voice && spoken) void speak(speakableAnswer(a)) // read aloud only when the question was spoken
       } catch (e) {
         if (!ctrl.signal.aborted && (e as Error).name !== 'AbortError') {
           setAnswer(null)
