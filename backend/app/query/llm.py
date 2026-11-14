@@ -4,9 +4,9 @@ Only used when neither the template table nor the English rules match, e.g. free
 paraphrased demo questions in other languages.
 
 Config (env):
-    LEARGAS_LLM_BASE_URL   e.g. http://<verda-host>:8000/v1   (unset -> fallback disabled)
+    LEARGAS_LLM_BASE_URL   e.g. http://<verda-host>:8000/v1   (default MODEL_BASE_URL; neither set -> disabled)
     LEARGAS_LLM_MODEL      default "gemma-base"
-    LEARGAS_LLM_API_KEY    optional
+    LEARGAS_LLM_API_KEY    optional (default MODEL_API_KEY)
     LEARGAS_LLM_TIMEOUT    seconds, default 20
 """
 
@@ -57,8 +57,18 @@ EXAMPLES: List[Dict[str, str]] = [
 ]
 
 
+def _base_url() -> str:
+    # Same OpenAI-compatible proxy as the raster model unless pointed elsewhere, so free-form
+    # questions get parsed whenever Gemma is reachable at all.
+    return os.environ.get("LEARGAS_LLM_BASE_URL") or os.environ.get("MODEL_BASE_URL") or ""
+
+
+def _api_key() -> str:
+    return os.environ.get("LEARGAS_LLM_API_KEY") or os.environ.get("MODEL_API_KEY") or ""
+
+
 def enabled() -> bool:
-    return bool(os.environ.get("LEARGAS_LLM_BASE_URL"))
+    return bool(_base_url())
 
 
 def build_messages(question: str) -> List[Dict[str, str]]:
@@ -81,10 +91,10 @@ def parse_output(text: str) -> Optional[Query]:
 
 
 def parse_with_llm(question: str, client: Optional[httpx.Client] = None) -> Optional[Query]:
-    base = os.environ["LEARGAS_LLM_BASE_URL"].rstrip("/")
+    base = _base_url().rstrip("/")
     headers = {}
-    if os.environ.get("LEARGAS_LLM_API_KEY"):
-        headers["Authorization"] = f"Bearer {os.environ['LEARGAS_LLM_API_KEY']}"
+    if _api_key():
+        headers["Authorization"] = f"Bearer {_api_key()}"
     body = {
         "model": os.environ.get("LEARGAS_LLM_MODEL", "gemma-base"),
         "messages": build_messages(question),

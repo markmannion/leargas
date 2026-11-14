@@ -53,6 +53,11 @@ GEMMA_TIMEOUT = float(os.environ.get("LEARGAS_GEMMA_TIMEOUT", 60))
 # Run 1 and every baseline were prompted without the points addendum; only a model trained with
 # points (run 2) should get it.
 GEMMA_POINTS = os.environ.get("LEARGAS_GEMMA_POINTS", "0") == "1"
+# Gemma's thresholds were calibrated on held-out dataset questions about dataset drawings. Outside
+# that (an uploaded sheet, or a question no dataset template matches) a high confidence means
+# nothing measured, so such answers top out at `partial`. Set to 0 to trust the threshold anyway.
+GEMMA_CALIBRATED_ONLY = os.environ.get("LEARGAS_GEMMA_CALIBRATED_ONLY", "1") != "0"
+CALIBRATED_SOURCES = ("data/cubicasa5k/", "data/swiss_dwellings/")
 IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg")
 
 _pool = ThreadPoolExecutor(max_workers=8)
@@ -305,7 +310,16 @@ def _source_answer(o: Outcome, qtype: QuestionType) -> SourceAnswer:
                         unit=_unit(o.unit, qtype) if o.ok else None, confidence=o.confidence if o.ok else 0.0)
 
 
-def reconcile(req: AskRequest, q: Optional[Query], outcomes: List[Outcome]) -> dict:
+def gemma_calibrated(req: AskRequest) -> bool:
+    """True when Gemma's confidence threshold was measured on this kind of drawing and question."""
+    if not GEMMA_CALIBRATED_ONLY:
+        return True
+    if not req.path.startswith(CALIBRATED_SOURCES):
+        return False
+    return parse(req.question, use_llm=False).parser == "template"
+
+
+def reconcile(req: AskRequest, q: Optional[Query], outcomes: List[Outcome], calibrated: bool = True) -> dict:
     geo = next((o for o in outcomes if o.source in (Source.geometry_dxf, Source.geometry_ifc)), None)
     gem = next((o for o in outcomes if o.source in (Source.gemma_ft, Source.gemma_base)), None)
     first = next((o for o in outcomes if o.ok), None)
@@ -330,8 +344,12 @@ def reconcile(req: AskRequest, q: Optional[Query], outcomes: List[Outcome]) -> d
         return answer(geo, Status.verified, geo.confidence, f"{geo.explanation}{note}")
     if gem and gem.ok:
         note = f" Geometry could not check it: {geo.reason}" if geo and geo.reason else ""
-        if gem.confidence >= GEMMA_VERIFIED:
+        if gem.confidence >= GEMMA_VERIFIED and calibrated:
             return answer(gem, Status.verified, gem.confidence, f"{gem.explanation}{note}")
+        if gem.confidence >= GEMMA_VERIFIED:
+            return answer(gem, Status.partial, gem.confidence,
+                          f"{gem.explanation} Not verified: the model's confidence is only calibrated on "
+                          f"dataset-style questions about dataset drawings.{note}")
         if gem.confidence >= GEMMA_PARTIAL:
             return answer(gem, Status.partial, gem.confidence, f"{gem.explanation} Low confidence.{note}")
         reasons = [f"{gem.source.value} answered {gem.value} with low confidence ({gem.confidence:.2f})."]
@@ -356,6 +374,7 @@ def _area_unprinted(req: AskRequest, q: Optional[Query]) -> bool:
 
 def route(req: AskRequest) -> Answer:
     t0 = time.perf_counter()
+    _import_model_pkg()  # loads the repo .env, so MODEL_BASE_URL also enables the LLM parser
     engine = req.engine or "auto"
     dxf = dxf_twin(req.path)
     ifc = None if dxf else ifc_model(req.path)
@@ -392,5 +411,6 @@ def route(req: AskRequest) -> Answer:
     if engine == "auto" and gemma_src is None and not (dxf or ifc):
         outcomes.append(Outcome(Source.gemma_ft, reason="Model endpoint not configured (MODEL_BASE_URL)."))
 
-    fields = reconcile(req, q, outcomes)
+    gem_ok = any(o.ok for o in outcomes if o.source in (Source.gemma_ft, Source.gemma_base))
+    fields = reconcile(req, q, outcomes, calibrated=gemma_calibrated(req) if gem_ok else True)
     return Answer(path=req.path, question=req.question, latency_ms=(time.perf_counter() - t0) * 1000, **fields)

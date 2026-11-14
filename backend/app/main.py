@@ -23,8 +23,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import demo_cache
 from . import router as qa_router
+from .query.parser import templates
 from .drawings import questions_path, router as drawings_router
 from .router import _guess_type
+from .uploads import router as uploads_router
 from .voice import router as voice_router
 
 from .schema import (
@@ -47,6 +49,7 @@ app.add_middleware(
 )
 app.include_router(drawings_router)
 app.include_router(voice_router)
+app.include_router(uploads_router)
 
 
 @lru_cache(maxsize=1)
@@ -76,7 +79,10 @@ def _mock_evidence(n: int) -> list:
 def health() -> dict:
     mode = "mock" if _mock() else "live"
     out = {"ok": True, "mode": mode, "gemma": mode == "live" and qa_router.gemma_available(),
-           "gold_questions_loaded": len(_gold())}
+           "gold_questions_loaded": len(_gold()),
+           # 0 means build_templates hasn't run here: parsing falls back to rules/LLM and no Gemma
+           # answer can be `verified` (router.gemma_calibrated).
+           "query_templates": len(templates())}
     if demo_cache.enabled():
         out["demo_cache"] = {"path": str(demo_cache.cache_path()),
                              "entries": len(demo_cache.entries(demo_cache.cache_path()))}

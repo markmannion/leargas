@@ -8,7 +8,8 @@
 Note: a DXF render is framed on the DXF extents, not on the PDF page, so evidence that is
 normalized to the PDF will not line up exactly on it. It is a stand-in when the PDF is missing.
 
-`GET /drawings` lists drawings that have questions and something renderable, with their questions.
+`GET /drawings` lists uploads (app/uploads.py) first, then dataset drawings that have questions and
+something renderable, with their questions.
 """
 
 from __future__ import annotations
@@ -170,5 +171,7 @@ def _catalogue() -> List[dict]:
 
 @router.get("/drawings")
 def drawings(limit: int = Query(300, ge=1, le=5000)) -> dict:
-    cat = _catalogue()
+    from .uploads import uploaded  # not cached: uploads change while the server runs
+
+    cat = uploaded() + _catalogue()
     return {"total": len(cat), "drawings": cat[:limit]}

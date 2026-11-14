@@ -100,6 +100,7 @@ def table(tmp_path, monkeypatch):
     out.write_text(json.dumps({"stats": stats, "templates": tbl}, ensure_ascii=False), encoding="utf-8")
     monkeypatch.setenv("LEARGAS_QUERY_TEMPLATES", str(out))
     monkeypatch.delenv("LEARGAS_LLM_BASE_URL", raising=False)
+    monkeypatch.delenv("MODEL_BASE_URL", raising=False)
     parser.templates.cache_clear()
     yield stats
     parser.templates.cache_clear()

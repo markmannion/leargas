@@ -10,7 +10,9 @@ cd backend && ../.venv/bin/pytest -q
 
 ## Endpoints
 
-- `POST /ask` `{path, question, type?, engine?}` → `Answer`. **Mock for now**: returns the gold answer with placeholder evidence if the question is in `LEARGAS_QUESTIONS`, otherwise `cannot_verify`.
+- `POST /ask` `{path, question, type?, engine?}` → `Answer`, through the router (`app/router.py`). `LEARGAS_MOCK=1` returns the gold answer with placeholder evidence instead.
+- `POST /upload?name=<file>[&group=<id>]`, raw file bytes as the body → `{group, drawing}`. PNG/JPG/PDF/DXF/IFC, up to 60 MB. Stored as `uploads/<group>/<stem><ext>` under the data root, so `drawing.path` works with `/ask` and `/drawing`, and uploads are listed first in `/drawings`. Send twins (`plan.pdf` + `plan.dxf`) with the first upload's `group` and they pair like dataset twins. A PDF gets a PNG twin for Gemma if PyMuPDF is installed.
+- Gemma is `verified` only on dataset drawings asked a question that matches a dataset template (where its threshold was calibrated). On uploads or free-form questions it tops out at `partial`. `LEARGAS_GEMMA_CALIBRATED_ONLY=0` turns this off. `/health` reports `query_templates`: if that's 0, run `build_templates`.
 - `GET /schema` — JSON Schema for the request and `Answer`.
 - `GET /health`
 
@@ -71,7 +73,7 @@ LEARGAS_DEMO_CACHE=1 .venv/bin/uvicorn app.main:app --app-dir backend --port 801
 
 1. **template**: an exact match in the multilingual template table. Confidence 0.99.
 2. **rules**: keyword rules for English questions, which also cover paraphrases. Confidence 0.85.
-3. **llm**: Gemma over an OpenAI-compatible endpoint. It only runs if `LEARGAS_LLM_BASE_URL` is set (`LEARGAS_LLM_MODEL` defaults to `gemma-base`). Confidence 0.7.
+3. **llm**: Gemma over an OpenAI-compatible endpoint. It runs whenever `LEARGAS_LLM_BASE_URL` or, failing that, `MODEL_BASE_URL` is set (key: `LEARGAS_LLM_API_KEY`, else `MODEL_API_KEY`; `LEARGAS_LLM_MODEL` defaults to `gemma-base`, so gemma-base must be served). Confidence 0.7.
 4. **none**: the caller should answer `cannot_verify`.
 
 The template table is built from the dataset, so it is gitignored. Build it once per machine:
