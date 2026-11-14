@@ -1,0 +1,1086 @@
+{
+ "label": "gemma-base",
+ "target_precision": 0.95,
+ "sets": {
+  "heldout_raster": {
+   "ALL": {
+    "n": 957,
+    "acc": 0.3448,
+    "mean_conf": 0.6002,
+    "buckets": [
+     {
+      "lo": 0.0,
+      "hi": 0.5,
+      "n": 432,
+      "acc": 0.1505
+     },
+     {
+      "lo": 0.5,
+      "hi": 0.7,
+      "n": 219,
+      "acc": 0.274
+     },
+     {
+      "lo": 0.7,
+      "hi": 0.8,
+      "n": 48,
+      "acc": 0.3333
+     },
+     {
+      "lo": 0.8,
+      "hi": 0.9,
+      "n": 52,
+      "acc": 0.5769
+     },
+     {
+      "lo": 0.9,
+      "hi": 0.95,
+      "n": 55,
+      "acc": 0.5818
+     },
+     {
+      "lo": 0.95,
+      "hi": 0.99,
+      "n": 66,
+      "acc": 0.7273
+     },
+     {
+      "lo": 0.99,
+      "hi": 1.0,
+      "n": 85,
+      "acc": 0.9294
+     }
+    ],
+    "threshold": {
+     "threshold": 0.9954,
+     "kept": 65,
+     "precision": 0.9538,
+     "coverage": 0.0679
+    },
+    "top_pred_answers": [
+     [
+      "1",
+      233
+     ],
+     [
+      "2",
+      188
+     ],
+     [
+      "3",
+      103
+     ],
+     [
+      "4",
+      85
+     ],
+     [
+      "10",
+      67
+     ]
+    ],
+    "top_gold_answers": [
+     [
+      "1",
+      304
+     ],
+     [
+      "2",
+      126
+     ],
+     [
+      "0",
+      97
+     ],
+     [
+      "4",
+      58
+     ],
+     [
+      "3",
+      52
+     ]
+    ],
+    "area_ratio_pred_over_gold_median": 0.751,
+    "count_error_mean": -0.277,
+    "count_error_hist": {
+     "-3": 79,
+     "-2": 23,
+     "-1": 46,
+     "0": 315,
+     "1": 185,
+     "2": 107,
+     "3": 68
+    }
+   },
+   "cubicasa5k/count": {
+    "n": 557,
+    "acc": 0.386,
+    "mean_conf": 0.6358,
+    "buckets": [
+     {
+      "lo": 0.0,
+      "hi": 0.5,
+      "n": 200,
+      "acc": 0.185
+     },
+     {
+      "lo": 0.5,
+      "hi": 0.7,
+      "n": 148,
+      "acc": 0.3176
+     },
+     {
+      "lo": 0.7,
+      "hi": 0.8,
+      "n": 34,
+      "acc": 0.2647
+     },
+     {
+      "lo": 0.8,
+      "hi": 0.9,
+      "n": 41,
+      "acc": 0.561
+     },
+     {
+      "lo": 0.9,
+      "hi": 0.95,
+      "n": 30,
+      "acc": 0.5
+     },
+     {
+      "lo": 0.95,
+      "hi": 0.99,
+      "n": 47,
+      "acc": 0.6809
+     },
+     {
+      "lo": 0.99,
+      "hi": 1.0,
+      "n": 57,
+      "acc": 0.9123
+     }
+    ],
+    "threshold": {
+     "threshold": 0.9961,
+     "kept": 41,
+     "precision": 0.9512,
+     "coverage": 0.0736
+    },
+    "top_pred_answers": [
+     [
+      "1",
+      193
+     ],
+     [
+      "2",
+      135
+     ],
+     [
+      "3",
+      85
+     ],
+     [
+      "4",
+      36
+     ],
+     [
+      "10",
+      34
+     ]
+    ],
+    "top_gold_answers": [
+     [
+      "1",
+      258
+     ],
+     [
+      "0",
+      87
+     ],
+     [
+      "2",
+      73
+     ],
+     [
+      "3",
+      37
+     ],
+     [
+      "4",
+      22
+     ]
+    ],
+    "count_error_mean": 0.293,
+    "count_error_hist": {
+     "-3": 32,
+     "-2": 12,
+     "-1": 28,
+     "0": 215,
+     "1": 155,
+     "2": 75,
+     "3": 40
+    }
+   },
+   "swiss_dwellings/area_printed": {
+    "n": 66,
+    "acc": 0.2273,
+    "mean_conf": 0.6092,
+    "buckets": [
+     {
+      "lo": 0.0,
+      "hi": 0.5,
+      "n": 37,
+      "acc": 0.0
+     },
+     {
+      "lo": 0.5,
+      "hi": 0.7,
+      "n": 4,
+      "acc": 0.0
+     },
+     {
+      "lo": 0.7,
+      "hi": 0.8,
+      "n": 1,
+      "acc": 0.0
+     },
+     {
+      "lo": 0.8,
+      "hi": 0.9,
+      "n": 3,
+      "acc": 0.3333
+     },
+     {
+      "lo": 0.9,
+      "hi": 0.95,
+      "n": 7,
+      "acc": 0.2857
+     },
+     {
+      "lo": 0.95,
+      "hi": 0.99,
+      "n": 10,
+      "acc": 0.8
+     },
+     {
+      "lo": 0.99,
+      "hi": 1.0,
+      "n": 4,
+      "acc": 1.0
+     }
+    ],
+    "threshold": {
+     "threshold": null,
+     "kept": 0,
+     "precision": null,
+     "coverage": 0.0
+    },
+    "top_pred_answers": [
+     [
+      "8.33",
+      2
+     ],
+     [
+      "4.95",
+      2
+     ],
+     [
+      "54.17",
+      2
+     ],
+     [
+      "4.96",
+      2
+     ],
+     [
+      "25.26",
+      2
+     ]
+    ],
+    "top_gold_answers": [
+     [
+      "55.41",
+      2
+     ],
+     [
+      "8.33",
+      2
+     ],
+     [
+      "171.6",
+      2
+     ],
+     [
+      "4.95",
+      2
+     ],
+     [
+      "66.87",
+      2
+     ]
+    ],
+    "area_ratio_pred_over_gold_median": 0.947
+   },
+   "swiss_dwellings/area_unprinted": {
+    "n": 68,
+    "acc": 0.0,
+    "mean_conf": 0.4558,
+    "buckets": [
+     {
+      "lo": 0.0,
+      "hi": 0.5,
+      "n": 56,
+      "acc": 0.0
+     },
+     {
+      "lo": 0.5,
+      "hi": 0.7,
+      "n": 9,
+      "acc": 0.0
+     },
+     {
+      "lo": 0.7,
+      "hi": 0.8,
+      "n": 2,
+      "acc": 0.0
+     },
+     {
+      "lo": 0.9,
+      "hi": 0.95,
+      "n": 1,
+      "acc": 0.0
+     }
+    ],
+    "threshold": {
+     "threshold": null,
+     "kept": 0,
+     "precision": null,
+     "coverage": 0.0
+    },
+    "top_pred_answers": [
+     [
+      "45.5",
+      5
+     ],
+     [
+      "3.5",
+      3
+     ],
+     [
+      "103.8",
+      3
+     ],
+     [
+      "12.5",
+      2
+     ],
+     [
+      "45.8",
+      2
+     ]
+    ],
+    "top_gold_answers": [
+     [
+      "23.6",
+      2
+     ],
+     [
+      "65.5",
+      2
+     ],
+     [
+      "195.86",
+      2
+     ],
+     [
+      "16.27",
+      1
+     ],
+     [
+      "96.9",
+      1
+     ]
+    ],
+    "area_ratio_pred_over_gold_median": 0.631
+   },
+   "swiss_dwellings/count": {
+    "n": 266,
+    "acc": 0.3759,
+    "mean_conf": 0.5603,
+    "buckets": [
+     {
+      "lo": 0.0,
+      "hi": 0.5,
+      "n": 139,
+      "acc": 0.2014
+     },
+     {
+      "lo": 0.5,
+      "hi": 0.7,
+      "n": 58,
+      "acc": 0.2241
+     },
+     {
+      "lo": 0.7,
+      "hi": 0.8,
+      "n": 11,
+      "acc": 0.6364
+     },
+     {
+      "lo": 0.8,
+      "hi": 0.9,
+      "n": 8,
+      "acc": 0.75
+     },
+     {
+      "lo": 0.9,
+      "hi": 0.95,
+      "n": 17,
+      "acc": 0.8824
+     },
+     {
+      "lo": 0.95,
+      "hi": 0.99,
+      "n": 9,
+      "acc": 0.8889
+     },
+     {
+      "lo": 0.99,
+      "hi": 1.0,
+      "n": 24,
+      "acc": 0.9583
+     }
+    ],
+    "threshold": {
+     "threshold": 0.9368,
+     "kept": 40,
+     "precision": 0.95,
+     "coverage": 0.1504
+    },
+    "top_pred_answers": [
+     [
+      "2",
+      53
+     ],
+     [
+      "4",
+      49
+     ],
+     [
+      "1",
+      40
+     ],
+     [
+      "10",
+      33
+     ],
+     [
+      "3",
+      18
+     ]
+    ],
+    "top_gold_answers": [
+     [
+      "2",
+      53
+     ],
+     [
+      "1",
+      46
+     ],
+     [
+      "4",
+      36
+     ],
+     [
+      "5",
+      17
+     ],
+     [
+      "6",
+      16
+     ]
+    ],
+    "count_error_mean": -1.47,
+    "count_error_hist": {
+     "-3": 47,
+     "-2": 11,
+     "-1": 18,
+     "0": 100,
+     "1": 30,
+     "2": 32,
+     "3": 28
+    }
+   }
+  },
+  "judge": {
+   "ALL": {
+    "n": 28,
+    "acc": 0.5357,
+    "mean_conf": 0.7,
+    "buckets": [
+     {
+      "lo": 0.0,
+      "hi": 0.5,
+      "n": 8,
+      "acc": 0.125
+     },
+     {
+      "lo": 0.5,
+      "hi": 0.7,
+      "n": 6,
+      "acc": 0.5
+     },
+     {
+      "lo": 0.7,
+      "hi": 0.8,
+      "n": 1,
+      "acc": 1.0
+     },
+     {
+      "lo": 0.8,
+      "hi": 0.9,
+      "n": 3,
+      "acc": 0.3333
+     },
+     {
+      "lo": 0.9,
+      "hi": 0.95,
+      "n": 1,
+      "acc": 1.0
+     },
+     {
+      "lo": 0.95,
+      "hi": 0.99,
+      "n": 3,
+      "acc": 0.6667
+     },
+     {
+      "lo": 0.99,
+      "hi": 1.0,
+      "n": 6,
+      "acc": 1.0
+     }
+    ],
+    "threshold": {
+     "threshold": null,
+     "kept": 0,
+     "precision": null,
+     "coverage": 0.0
+    },
+    "top_pred_answers": [
+     [
+      "2",
+      6
+     ],
+     [
+      "1",
+      4
+     ],
+     [
+      "4",
+      3
+     ],
+     [
+      "27.01",
+      2
+     ],
+     [
+      "3",
+      2
+     ]
+    ],
+    "top_gold_answers": [
+     [
+      "2",
+      8
+     ],
+     [
+      "4",
+      4
+     ],
+     [
+      "1",
+      3
+     ],
+     [
+      "12",
+      1
+     ],
+     [
+      "32",
+      1
+     ]
+    ],
+    "area_ratio_pred_over_gold_median": 0.896,
+    "count_error_mean": -1.579,
+    "count_error_hist": {
+     "-3": 2,
+     "-2": 1,
+     "-1": 3,
+     "0": 12,
+     "1": 1
+    }
+   },
+   "cubicasa5k/area": {
+    "n": 2,
+    "acc": 1.0,
+    "mean_conf": 0.9756,
+    "buckets": [
+     {
+      "lo": 0.95,
+      "hi": 0.99,
+      "n": 1,
+      "acc": 1.0
+     },
+     {
+      "lo": 0.99,
+      "hi": 1.0,
+      "n": 1,
+      "acc": 1.0
+     }
+    ],
+    "threshold": {
+     "threshold": null,
+     "kept": 0,
+     "precision": null,
+     "coverage": 0.0
+    },
+    "top_pred_answers": [
+     [
+      "12.4",
+      1
+     ],
+     [
+      "91.5",
+      1
+     ]
+    ],
+    "top_gold_answers": [
+     [
+      "12.4",
+      1
+     ],
+     [
+      "91.5",
+      1
+     ]
+    ],
+    "area_ratio_pred_over_gold_median": 1.0
+   },
+   "cubicasa5k/count": {
+    "n": 8,
+    "acc": 0.625,
+    "mean_conf": 0.6671,
+    "buckets": [
+     {
+      "lo": 0.0,
+      "hi": 0.5,
+      "n": 3,
+      "acc": 0.0
+     },
+     {
+      "lo": 0.5,
+      "hi": 0.7,
+      "n": 1,
+      "acc": 1.0
+     },
+     {
+      "lo": 0.8,
+      "hi": 0.9,
+      "n": 1,
+      "acc": 1.0
+     },
+     {
+      "lo": 0.9,
+      "hi": 0.95,
+      "n": 1,
+      "acc": 1.0
+     },
+     {
+      "lo": 0.99,
+      "hi": 1.0,
+      "n": 2,
+      "acc": 1.0
+     }
+    ],
+    "threshold": {
+     "threshold": null,
+     "kept": 0,
+     "precision": null,
+     "coverage": 0.0
+    },
+    "top_pred_answers": [
+     [
+      "2",
+      2
+     ],
+     [
+      "1",
+      2
+     ],
+     [
+      "4",
+      2
+     ],
+     [
+      "0",
+      1
+     ],
+     [
+      "7",
+      1
+     ]
+    ],
+    "top_gold_answers": [
+     [
+      "2",
+      3
+     ],
+     [
+      "4",
+      2
+     ],
+     [
+      "5",
+      1
+     ],
+     [
+      "1",
+      1
+     ],
+     [
+      "8",
+      1
+     ]
+    ],
+    "count_error_mean": -0.875,
+    "count_error_hist": {
+     "-3": 1,
+     "-1": 2,
+     "0": 5
+    }
+   },
+   "finna/area": {
+    "n": 1,
+    "acc": 0.0,
+    "mean_conf": 0.4773,
+    "buckets": [
+     {
+      "lo": 0.0,
+      "hi": 0.5,
+      "n": 1,
+      "acc": 0.0
+     }
+    ],
+    "threshold": {
+     "threshold": null,
+     "kept": 0,
+     "precision": null,
+     "coverage": 0.0
+    },
+    "top_pred_answers": [
+     [
+      "20.0",
+      1
+     ]
+    ],
+    "top_gold_answers": [
+     [
+      "None",
+      1
+     ]
+    ]
+   },
+   "finna/count": {
+    "n": 2,
+    "acc": 1.0,
+    "mean_conf": 0.9938,
+    "buckets": [
+     {
+      "lo": 0.99,
+      "hi": 1.0,
+      "n": 2,
+      "acc": 1.0
+     }
+    ],
+    "threshold": {
+     "threshold": null,
+     "kept": 0,
+     "precision": null,
+     "coverage": 0.0
+    },
+    "top_pred_answers": [
+     [
+      "2",
+      1
+     ],
+     [
+      "1",
+      1
+     ]
+    ],
+    "top_gold_answers": [
+     [
+      "2",
+      1
+     ],
+     [
+      "1",
+      1
+     ]
+    ],
+    "count_error_mean": 0.0,
+    "count_error_hist": {
+     "0": 2
+    }
+   },
+   "habs/count": {
+    "n": 1,
+    "acc": 0.0,
+    "mean_conf": 0.8489,
+    "buckets": [
+     {
+      "lo": 0.8,
+      "hi": 0.9,
+      "n": 1,
+      "acc": 0.0
+     }
+    ],
+    "threshold": {
+     "threshold": null,
+     "kept": 0,
+     "precision": null,
+     "coverage": 0.0
+    },
+    "top_pred_answers": [
+     [
+      "3",
+      1
+     ]
+    ],
+    "top_gold_answers": [
+     [
+      "2",
+      1
+     ]
+    ],
+    "count_error_mean": 1.0,
+    "count_error_hist": {
+     "1": 1
+    }
+   },
+   "habs/length": {
+    "n": 1,
+    "acc": 0.0,
+    "mean_conf": 0.5197,
+    "buckets": [
+     {
+      "lo": 0.5,
+      "hi": 0.7,
+      "n": 1,
+      "acc": 0.0
+     }
+    ],
+    "threshold": {
+     "threshold": null,
+     "kept": 0,
+     "precision": null,
+     "coverage": 0.0
+    },
+    "top_pred_answers": [
+     [
+      "12.0",
+      1
+     ]
+    ],
+    "top_gold_answers": [
+     [
+      "11.14",
+      1
+     ]
+    ],
+    "area_ratio_pred_over_gold_median": 1.077
+   },
+   "swiss_dwellings/area_printed": {
+    "n": 5,
+    "acc": 0.2,
+    "mean_conf": 0.7243,
+    "buckets": [
+     {
+      "lo": 0.0,
+      "hi": 0.5,
+      "n": 1,
+      "acc": 0.0
+     },
+     {
+      "lo": 0.5,
+      "hi": 0.7,
+      "n": 1,
+      "acc": 0.0
+     },
+     {
+      "lo": 0.8,
+      "hi": 0.9,
+      "n": 1,
+      "acc": 0.0
+     },
+     {
+      "lo": 0.95,
+      "hi": 0.99,
+      "n": 2,
+      "acc": 0.5
+     }
+    ],
+    "threshold": {
+     "threshold": null,
+     "kept": 0,
+     "precision": null,
+     "coverage": 0.0
+    },
+    "top_pred_answers": [
+     [
+      "27.01",
+      2
+     ],
+     [
+      "248.97",
+      1
+     ],
+     [
+      "20.82",
+      1
+     ],
+     [
+      "10.27",
+      1
+     ]
+    ],
+    "top_gold_answers": [
+     [
+      "314.29",
+      1
+     ],
+     [
+      "67.49",
+      1
+     ],
+     [
+      "20.82",
+      1
+     ],
+     [
+      "22.68",
+      1
+     ],
+     [
+      "56.09",
+      1
+     ]
+    ],
+    "area_ratio_pred_over_gold_median": 0.482
+   },
+   "swiss_dwellings/count": {
+    "n": 8,
+    "acc": 0.625,
+    "mean_conf": 0.6069,
+    "buckets": [
+     {
+      "lo": 0.0,
+      "hi": 0.5,
+      "n": 3,
+      "acc": 0.3333
+     },
+     {
+      "lo": 0.5,
+      "hi": 0.7,
+      "n": 3,
+      "acc": 0.6667
+     },
+     {
+      "lo": 0.7,
+      "hi": 0.8,
+      "n": 1,
+      "acc": 1.0
+     },
+     {
+      "lo": 0.99,
+      "hi": 1.0,
+      "n": 1,
+      "acc": 1.0
+     }
+    ],
+    "threshold": {
+     "threshold": null,
+     "kept": 0,
+     "precision": null,
+     "coverage": 0.0
+    },
+    "top_pred_answers": [
+     [
+      "2",
+      3
+     ],
+     [
+      "10",
+      1
+     ],
+     [
+      "11",
+      1
+     ],
+     [
+      "3",
+      1
+     ],
+     [
+      "4",
+      1
+     ]
+    ],
+    "top_gold_answers": [
+     [
+      "2",
+      3
+     ],
+     [
+      "4",
+      2
+     ],
+     [
+      "12",
+      1
+     ],
+     [
+      "32",
+      1
+     ],
+     [
+      "1",
+      1
+     ]
+    ],
+    "count_error_mean": -3.0,
+    "count_error_hist": {
+     "-3": 1,
+     "-2": 1,
+     "-1": 1,
+     "0": 5
+    }
+   }
+  }
+ },
+ "thresholds": {
+  "ALL": 0.9954,
+  "cubicasa5k/count": 0.9961,
+  "swiss_dwellings/area_printed": null,
+  "swiss_dwellings/area_unprinted": null,
+  "swiss_dwellings/count": 0.9368,
+  "cubicasa5k/area": null,
+  "finna/area": null,
+  "finna/count": null,
+  "habs/count": null,
+  "habs/length": null
+ }
+}

@@ -1,4 +1,4 @@
-"""Scoring adapter. Uses Harry's eval/score.py (contract C2) when it exists, else a local copy
+"""Scoring adapter. Uses Harry's backend/score.py score_one (contract C2) when it exists, else a local copy
 of the same rules so baselines can run before 10:00:
 
 - counts: exact match
@@ -19,12 +19,25 @@ from .prompt import normalize_unit
 
 REL_TOL = 0.02
 
-try:  # Harry's scorer wins when it lands (C2, Sat 10:00)
-    from eval import score as _harry  # type: ignore
+def _load_harry():
+    """Harry's scorer (C2) landed as backend/score.py: score_one(gold, pred, tol) -> {"correct", "outcome", ...}.
+    Loaded by file path because backend/ isn't a package. Stdlib only, so this works everywhere."""
+    import importlib.util
+    from pathlib import Path
 
-    _HARRY = getattr(_harry, "score_one", None) or getattr(_harry, "score_answer", None)
-except Exception:  # noqa: BLE001
-    _HARRY = None
+    f = Path(__file__).resolve().parent.parent / "backend" / "score.py"
+    if not f.exists():
+        return None
+    try:
+        spec = importlib.util.spec_from_file_location("harry_score", f)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)  # type: ignore[union-attr]
+        return getattr(mod, "score_one", None)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+_HARRY = _load_harry()
 
 
 def _num(x: Any) -> float | None:
@@ -57,11 +70,15 @@ def local_score(pred_answer: Any, pred_unit: Any, gold: dict, abstained: bool = 
 def score(pred_answer: Any, pred_unit: Any, gold: dict, abstained: bool = False) -> str:
     if _HARRY is not None:
         try:
-            r = _HARRY({"answer": pred_answer, "unit": pred_unit, "cannot_verify": abstained}, gold)
-            if isinstance(r, bool):
-                return "correct" if r else ("abstained" if abstained or pred_answer is None else "wrong")
-            if isinstance(r, str):
-                return r
+            pred = {"answer": None if abstained else pred_answer, "unit": pred_unit,
+                    "status": "cannot_verify" if abstained else None}
+            r = _HARRY(gold, pred)
+            out = r.get("outcome")
+            if out in ("abstain", "missing"):
+                return "abstained"
+            if gold.get("type") == "text":  # text stays out of the headline number, as in Harry's report
+                return "correct" if r.get("correct") else "text"
+            return "correct" if r.get("correct") else "wrong"
         except Exception:  # noqa: BLE001  fall back rather than crash a 1,000-question run
             pass
     return local_score(pred_answer, pred_unit, gold, abstained)

@@ -25,8 +25,10 @@ common=(--api-key "$MODEL_API_KEY" --max-model-len "$MAXLEN"
 start() {  # name port model util [extra...]
   local name=$1 port=$2 model=$3 util=$4; shift 4
   tmux has-session -t serve 2>/dev/null || tmux new-session -d -s serve -n shell
+  # VLLM_USE_FLASHINFER_SAMPLER=0: FlashInfer's sampler JIT-compiles on first use and needs nvcc + ninja
+  # on PATH, which the Verda image lacks (engine dies in profile_run). The torch sampler is fine for us.
   tmux new-window -t serve -n "$name" \
-    "$VLLM serve $model --served-model-name $name --port $port --gpu-memory-utilization $util ${common[*]@Q} $* 2>&1 | tee ~/vllm-$name.log"
+    "env VLLM_USE_FLASHINFER_SAMPLER=${VLLM_USE_FLASHINFER_SAMPLER:-0} $VLLM serve $model --served-model-name $name --port $port --gpu-memory-utilization $util ${common[*]@Q} $* 2>&1 | tee ~/vllm-$name.log"
   echo "starting $name ($model) on :$port  (log ~/vllm-$name.log)"
 }
 
@@ -45,7 +47,11 @@ case "${1:-}" in
          start gemma-26b 8004 google/gemma-4-26B-A4B-it 0.72
          wait_ready 8003; wait_ready 8004 ;;
   proxy) tmux has-session -t serve 2>/dev/null || tmux new-session -d -s serve -n shell
-         tmux new-window -t serve -n proxy "cd ~/bt && ~/venv-vllm/bin/python infra/model_proxy.py --port 8000 2>&1 | tee ~/proxy.log"
+         # Pass the env explicitly: a tmux window gets the tmux *server's* env (frozen when the first
+         # session started), so without this the proxy can run with no API key and no custom ROUTES.
+         envs="MODEL_API_KEY=${MODEL_API_KEY@Q}"
+         if [ -n "${ROUTES:-}" ]; then envs+=" ROUTES=${ROUTES@Q}"; fi
+         tmux new-window -t serve -n proxy "cd ~/bt && env $envs ~/venv-vllm/bin/python infra/model_proxy.py --port 8000 2>&1 | tee ~/proxy.log"
          sleep 2; echo "proxy on :8000 -> MODEL_BASE_URL=http://<box-ip>:8000/v1" ;;
   *) echo "usage: $0 base|ft <model>|sweep|proxy"; exit 1 ;;
 esac

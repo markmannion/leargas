@@ -142,6 +142,8 @@ def main() -> None:
                     help="keep swiss area questions on drawings without printed m² (default: drop them)")
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--val", type=int, default=300, help="extra held-in rows for a quick eval loss (from TRAIN drawings)")
+    ap.add_argument("--crop-swiss", action="store_true",
+                    help="swiss rows use the plan-only crops (python -m model.crop --write first); points mapped to the crop")
     ap.add_argument("--preview", type=int, default=0, help="save N resized training images to data/sft/preview/ and exit")
     a = ap.parse_args()
     rng = random.Random(a.seed)
@@ -153,6 +155,19 @@ def main() -> None:
         qs = [q for q in qs if not (q["type"] == "area" and prints_areas(q["path"]) is False)]
         print(f"dropped {before - len(qs)} swiss area questions on drawings that print no m² (unanswerable from pixels)")
     rows = [{**q, "source": source_of(q["path"]), "lang": guess_lang(q["question"]), "image": raster_path(q["path"])} for q in qs]
+    boxes: dict = {}
+    if a.crop_swiss:
+        from .crop import BOXES, crop_path, saved_boxes
+        boxes = saved_boxes()
+        if not boxes:
+            raise SystemExit(f"no crops at {BOXES}: run python -m model.crop --write first (on the machine that trains)")
+        missing = {Path(r["image"]).stem for r in rows if r["source"] == "swiss_dwellings"} - set(boxes)
+        if missing:
+            raise SystemExit(f"{len(missing)} swiss images have no crop box, e.g. {sorted(missing)[:3]}")
+        for r in rows:
+            if r["source"] == "swiss_dwellings":
+                r["sheet_image"], r["image"] = r["image"], crop_path(r["image"])
+        print("swiss rows -> plan crops (data/swiss_dwellings_crop/)")
     print(f"training-split raster questions: {len(rows)}")
 
     if a.preview:
@@ -181,8 +196,16 @@ def main() -> None:
         pts = None
         if a.points and r["type"] == "count":
             kinds = question_kinds(r["question"])
-            if kinds and r["image"] in points:
-                cand = [p for k in kinds for p in points[r["image"]].get(k, [])]
+            sheet = r.get("sheet_image", r["image"])
+            if kinds and sheet in points:
+                cand = [p for k in kinds for p in points[sheet].get(k, [])]
+                if "sheet_image" in r:  # labels are on the sheet; the model sees the crop
+                    from .crop import sheet_to_crop
+                    box = boxes[Path(sheet).stem]
+                    mapped = [sheet_to_crop(p, box) for p in cand]
+                    if any(m is None for m in mapped):
+                        stats["points_outside_crop"] += 1
+                    cand = [m for m in mapped if m is not None]
                 if len(cand) == r["answer"]:
                     pts = cand
                     stats["with_points"] += 1
@@ -200,7 +223,7 @@ def main() -> None:
         q, why = ABSTAIN_QUESTIONS[j % len(ABSTAIN_QUESTIONS)]
         img = rng.choice(imgs)
         out_rows.append({"id": f"abst_{j:05d}", "image": img, "question": q, "target": format_target(None, None, reason=why),
-                         "source": source_of(img), "type": "abstain", "lang": guess_lang(q), "has_points": False,
+                         "source": source_of(img).removesuffix("_crop"), "type": "abstain", "lang": guess_lang(q), "has_points": False,
                          "answer": None, "unit": None})
     rng.shuffle(out_rows)
     write_jsonl(Path(a.out), out_rows)
