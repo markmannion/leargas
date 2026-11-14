@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import type { Drawing } from '../../types'
-import { FORMAT_LABEL, collectionName, drawingName, useCatalogue } from '../../core/catalogue'
+import { collectionName, drawingName, formatsOf, useCatalogue } from '../../core/catalogue'
 import { UPLOAD_ACCEPT, useUpload } from '../../core/upload'
 
 interface Props {
@@ -24,6 +24,8 @@ export function ClarRegister({ drawings, selected, loading, error, onSelect, onU
   const search = useRef<HTMLInputElement>(null)
   const up = useUpload((d) => { c.clear(); onUploaded(d) })
   const rows = c.results.slice(0, limit)
+  // Uploads come first; label the two groups when the list has uploads in it.
+  const grouped = rows.some((d) => d.collection === 'uploads')
   const width = String(c.results.length).length
 
   useEffect(() => { search.current?.focus() }, [])
@@ -63,9 +65,9 @@ export function ClarRegister({ drawings, selected, loading, error, onSelect, onU
         {c.formats.length > 1 && (
           <fieldset className="cr-formats">
             <legend>Format</legend>
-            {(['', ...c.formats] as const).map((f) => (
+            {['', ...c.formats].map((f) => (
               <button key={f || 'all'} type="button" aria-pressed={c.format === f} onClick={() => { c.setFormat(f); setLimit(PAGE) }}>
-                {f ? FORMAT_LABEL[f] : 'All'}
+                {f || 'All'}
               </button>
             ))}
           </fieldset>
@@ -99,8 +101,14 @@ export function ClarRegister({ drawings, selected, loading, error, onSelect, onU
             <tbody>
               {rows.map((d, i) => {
                 const [main, sub] = drawingName(d.name)
+                const upload = d.collection === 'uploads'
+                const heading = grouped && (i === 0 || upload !== (rows[i - 1].collection === 'uploads'))
                 return (
-                  <tr key={d.path} aria-current={d.path === selected ? 'true' : undefined}>
+                  <Fragment key={d.path}>
+                  {heading && (
+                    <tr className="cr-group"><th scope="rowgroup" colSpan={5}>{upload ? 'Uploaded files' : 'Dataset drawings'}</th></tr>
+                  )}
+                  <tr aria-current={d.path === selected ? 'true' : undefined}>
                     <td className="n cr-no">{String(i + 1).padStart(width, '0')}</td>
                     <th scope="row">
                       <button type="button" onClick={() => onSelect(d)} title={d.path}>
@@ -108,9 +116,10 @@ export function ClarRegister({ drawings, selected, loading, error, onSelect, onU
                       </button>
                     </th>
                     <td>{collectionName(d.collection)}</td>
-                    <td>{FORMAT_LABEL[d.render]}</td>
-                    <td className="n">{d.collection === 'uploads' ? <span className="cr-dim">—</span> : d.questions.length}</td>
+                    <td>{formatsOf(d).join(' + ')}</td>
+                    <td className="n">{upload ? <span className="cr-dim">—</span> : d.questions.length}</td>
                   </tr>
+                  </Fragment>
                 )
               })}
             </tbody>

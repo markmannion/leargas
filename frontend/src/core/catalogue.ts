@@ -9,7 +9,7 @@ export const FORMAT_LABEL: Record<Drawing['render'], string> = { image: 'PNG', p
 const COLLECTION_NAME: Record<string, string> = {
   cubicasa5k: 'CubiCasa5k',
   swiss_dwellings: 'Swiss Dwellings',
-  uploads: 'Your uploads',
+  uploads: 'Uploaded files',
 }
 
 export function collectionName(c: string) {
@@ -34,6 +34,16 @@ export function vectorTwins(d: Drawing): string[] {
   return (d.files ?? []).filter((f) => f === 'dxf' || f === 'ifc').map((f) => f.toUpperCase())
 }
 
+const EXT_LABEL: Record<string, string> = { png: 'PNG', jpg: 'JPEG', jpeg: 'JPEG', svg: 'SVG', pdf: 'PDF', dxf: 'DXF', ifc: 'IFC' }
+const FORMAT_ORDER = ['PNG', 'JPEG', 'SVG', 'PDF', 'DXF', 'IFC']
+
+/** The sheet's own format first, then its DXF / IFC twins: a Swiss plan is "PDF" + "DXF". */
+export function formatsOf(d: Drawing): string[] {
+  const ext = d.path.split('.').pop()?.toLowerCase() ?? ''
+  const main = d.render === 'image' ? EXT_LABEL[ext] ?? 'PNG' : FORMAT_LABEL[d.render]
+  return [...new Set([main, ...vectorTwins(d)])]
+}
+
 function searchText(text: string) {
   return text.toLowerCase().replace(/([a-z])(\d)/g, '$1 $2').replace(/[^\p{L}\p{N}]+/gu, ' ')
 }
@@ -41,22 +51,25 @@ function searchText(text: string) {
 export function useCatalogue(drawings: Drawing[]) {
   const [query, setQuery] = useState('')
   const [collection, setCollection] = useState('')
-  const [format, setFormat] = useState<Drawing['render'] | ''>('')
+  const [format, setFormat] = useState('')
 
   const collections = useMemo(() => {
     const counts = new Map<string, number>()
     for (const d of drawings) counts.set(d.collection, (counts.get(d.collection) ?? 0) + 1)
     return [...counts].sort(([a], [b]) => (a === 'uploads' ? -1 : b === 'uploads' ? 1 : naturalOrder.compare(a, b)))
   }, [drawings])
-  const formats = useMemo(() => [...new Set(drawings.map((d) => d.render))], [drawings])
+  const formats = useMemo(() => {
+    const seen = new Set(drawings.flatMap(formatsOf))
+    return FORMAT_ORDER.filter((f) => seen.has(f))
+  }, [drawings])
 
   const results = useMemo(() => {
     const terms = searchText(query).split(' ').filter(Boolean)
     return drawings
       .filter((d) => {
         if (collection && d.collection !== collection) return false
-        if (format && d.render !== format) return false
-        const hay = searchText(`${d.path} ${drawingName(d.name).join(' ')} ${FORMAT_LABEL[d.render]}`)
+        if (format && !formatsOf(d).includes(format)) return false
+        const hay = searchText(`${d.path} ${drawingName(d.name).join(' ')} ${formatsOf(d).join(' ')}`)
         return terms.every((t) => hay.includes(t))
       })
       .sort((a, b) => (a.collection === 'uploads' ? -1 : 0) - (b.collection === 'uploads' ? -1 : 0)
