@@ -17,7 +17,14 @@ Point the proxy at another backend with `LEARGAS_API=http://host:port npm run de
 
 ## What it talks to
 
+Use **Upload a plan**, or drop a file on the upload area in the plan library.
+PDF, PNG, JPEG and DXF files up to 25 MiB are supported. Upload progress and
+validation errors appear in the library. A successful upload clears library
+filters, opens the plan, and stays in the **uploads** collection after refresh.
+PDFs display page one; ask questions using the existing engine controls.
+
 - `GET /drawings`: drawing register (drawings with questions and something renderable).
+- `POST /drawings/upload?filename=…`: raw file upload; returns the new drawing.
 - `GET /drawing?path=…`: the sheet image. Falls back to an SVG render of the DXF twin when the PNG/PDF is not available locally; the status bar says "Rendered from DXF twin" when that happens.
 - `POST /ask` `{path, question, type?, engine}`: returns an `Answer` (`src/types.ts` mirrors `backend/app/schema.py`). The top-bar engine toggle sets `engine`.
 - `GET /health`: `mode: "mock"` shows the amber *Mock API* badge. Polled every 15 s.

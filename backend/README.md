@@ -14,6 +14,29 @@ cd backend && ../.venv/bin/pytest -q
 - `GET /schema` — JSON Schema for the request and `Answer`.
 - `GET /health`
 
+## Uploading plans
+
+The plan library accepts PDF, PNG, JPEG and DXF files up to **25 MiB** each.
+Install `backend/requirements.txt` for image/PDF support, and
+`backend/requirements-dxf.txt` for DXF rendering.
+
+`POST /drawings/upload?filename=Floor.pdf` takes the file's raw bytes as the
+request body (`Content-Type: application/octet-stream`) and returns a drawing
+record with HTTP 201. Files are decoded before publication; empty, corrupt,
+password-protected and unsupported files are rejected. Over-limit requests return
+413, and unavailable rendering/storage returns 503.
+
+Uploads persist in `data/uploads/<unique-id>/` beneath `LEARGAS_DATA_ROOT`
+(default `datasets/junction-dataset/`), with a `plan.json` manifest. Keep that
+directory on persistent storage when deploying. `GET /drawings` includes uploaded
+plans independently of the reference-question catalogue; uploads have no reference
+questions. Identical filenames receive separate directories and previews.
+
+PDFs open on page one. A PNG of that page is saved beside the original PDF so the
+viewer and raster model use the same framing. Questions use the existing answer
+engines and their availability; DXF geometry answers require a supported drawing
+profile. Uploading a plan does not manufacture reference answers.
+
 ## Temporary Gemma outages
 
 `/health` keeps `ok: true` while the API is serving geometry and cached answers.
