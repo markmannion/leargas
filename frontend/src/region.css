@@ -1,0 +1,54 @@
+.question-scope {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--separator);
+  background: var(--fill-2);
+}
+
+.question-scope.is-scoped {
+  background: color-mix(in srgb, var(--blue) 7%, transparent);
+}
+
+.scope-heading, .scope-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.scope-heading { justify-content: space-between; margin-bottom: 10px; }
+.scope-heading .field-label { margin: 0; }
+.scope-heading strong { font-size: 12px; }
+.scope-actions button {
+  border: 1px solid var(--separator);
+  background: var(--control-bg);
+  border-radius: 8px;
+  padding: 7px 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.scope-actions button:first-child { color: var(--blue); }
+.scope-actions button.active, .region-toggle.active { background: var(--blue); color: white; }
+.scope-actions button:disabled { opacity: 0.45; cursor: default; }
+.scope-help { color: var(--label-2); font-size: 11px; margin: 9px 0 0; line-height: 1.5; }
+.region-overlay { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+.region-shade { fill: rgba(20, 30, 50, 0.22); }
+.region-outline { fill: rgba(0, 122, 255, 0.04); stroke: var(--blue); stroke-dasharray: 8 4; }
+.viewer-frame.selecting-region { cursor: crosshair; }
+.viewer-frame.selecting-region .overlay { pointer-events: none; }
+.viewer-frame.selecting-region .mark { pointer-events: none; }
+.selection-instruction { color: var(--blue); font: 11px var(--font); }
+.hud-status:has(.selection-instruction) {
+  max-width: calc(100% - var(--inset-left) - var(--inset-right) - 24px);
+  flex-wrap: wrap;
+}
+.hud-tools {
+  width: max-content;
+  max-width: calc(100% - var(--inset-left) - var(--inset-right) - 24px);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+@media (max-width: 480px) {
+  .hud-tools { gap: 5px; }
+  .hud-status .selection-instruction { width: 100%; }
+}

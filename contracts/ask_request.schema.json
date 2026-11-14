@@ -11,6 +11,50 @@
       ],
       "title": "QuestionType",
       "type": "string"
+    },
+    "Region": {
+      "description": "A non-empty selection in the same normalized coordinates as sheet evidence.",
+      "properties": {
+        "bbox": {
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            }
+          ],
+          "title": "Bbox",
+          "type": "array"
+        },
+        "page": {
+          "const": 0,
+          "default": 0,
+          "title": "Page",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "bbox"
+      ],
+      "title": "Region",
+      "type": "object"
     }
   },
   "properties": {
@@ -52,6 +96,17 @@
       ],
       "default": "auto",
       "title": "Engine"
+    },
+    "region": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Region"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

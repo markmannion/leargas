@@ -23,3 +23,9 @@ Point the proxy at another backend with `LEARGAS_API=http://host:port npm run de
 - `GET /health`: `mode: "mock"` shows the amber *Mock API* badge. Polled every 15 s.
 
 Evidence shapes (`point`, `bbox`, `polygon`) are normalized 0–1 on the rendered sheet and drawn in `src/components/SheetViewer.tsx`, coloured by source: blue for geometry, orange for Gemma, violet for the mock.
+
+Choose **Draw a region** in the question panel or viewer toolbar, then drag a box on the plan.
+The next typed, suggested, or spoken question is limited to that selection. **Redraw region** replaces
+the box, **Use whole plan** clears it, and Escape cancels drawing. The selection follows pan/zoom;
+switching plans clears the selection and any pending answer. Counts use item centers; include entire
+rooms when asking for their areas. Scoped answers are not compared against whole-sheet dataset answers.

@@ -68,6 +68,7 @@ export function AnswerCard({ answer, reference, hovered, onHover, speech }: Prop
       <p className="status-note">{STATUS_NOTE[answer.status]}</p>
 
       <dl className="facts">
+        {answer.region && <div><dt>Scope</dt><dd>Selected region</dd></div>}
         <div>
           <dt>Source</dt>
           <dd>

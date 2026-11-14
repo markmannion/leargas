@@ -87,11 +87,26 @@ class Evidence(BaseModel):
     source: Optional[Source] = None
 
 
+class Region(BaseModel):
+    """A non-empty selection in the same normalized coordinates as sheet evidence."""
+
+    bbox: Tuple[Unit01, Unit01, Unit01, Unit01]
+    page: Literal[0] = 0
+
+    @model_validator(mode="after")
+    def _nonempty(self) -> "Region":
+        x0, y0, x1, y1 = self.bbox
+        if x1 <= x0 or y1 <= y0:
+            raise ValueError("region must have positive width and height")
+        return self
+
+
 class AskRequest(BaseModel):
     path: str = Field(description='Dataset path, e.g. "data/swiss_dwellings/site3387_bldg5238_floor23498.pdf"')
     question: str
     type: Optional[QuestionType] = Field(None, description="Hint if known; otherwise inferred")
     engine: Optional[Literal["auto", "geometry", "gemma_ft", "gemma_base"]] = "auto"
+    region: Optional[Region] = None
 
 
 class SourceAnswer(BaseModel):
@@ -108,6 +123,7 @@ class Answer(BaseModel):
 
     path: str
     question: str
+    region: Optional[Region] = None
     answer: Union[int, float, str, None] = Field(description="null when status is cannot_verify")
     unit: Optional[Unit] = Field(None, description="null for text answers")
     type: QuestionType

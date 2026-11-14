@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { Evidence, Source } from '../types'
+import type { Evidence, Source, Region, Pt } from '../types'
 
 // The sheet is laid out at a fixed base width; evidence (normalized 0–1) is drawn in the same
 // pixel space, so markers keep their size and the overlay lines up at every zoom level.
@@ -14,6 +14,10 @@ interface Props {
   hovered: number | null
   onHover: (i: number | null) => void
   renderNote?: string | null
+  region: Region | null
+  selectingRegion: boolean
+  onRegionChange: (region: Region | null) => void
+  onSelectionModeChange: (active: boolean) => void
 }
 
 interface View {
@@ -28,7 +32,7 @@ export function sourceClass(s?: Source | null): string {
   return 'src-mock'
 }
 
-export function SheetViewer({ src, evidence, page, hovered, onHover, renderNote }: Props) {
+export function SheetViewer({ src, evidence, page, hovered, onHover, renderNote, region, selectingRegion, onRegionChange, onSelectionModeChange }: Props) {
   const frame = useRef<HTMLDivElement>(null)
   // Load state is keyed by src, so a cached image that loads before effects run can't be clobbered.
   const [loaded, setLoaded] = useState<{ src: string; aspect: number } | null>(null)
@@ -46,6 +50,22 @@ export function SheetViewer({ src, evidence, page, hovered, onHover, renderNote 
   const [showEvidence, setShowEvidence] = useState(true)
   const drag = useRef<{ x: number; y: number; vx: number; vy: number } | null>(null)
   const [dragging, setDragging] = useState(false)
+  const selectionStart = useRef<Pt | null>(null)
+  const [draft, setDraft] = useState<Region | null>(null)
+  const [selectionHint, setSelectionHint] = useState<string | null>(null)
+
+  useEffect(() => {
+    const cancel = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && selectingRegion) {
+        selectionStart.current = null
+        setDraft(null)
+        setSelectionHint(null)
+        onSelectionModeChange(false)
+      }
+    }
+    window.addEventListener('keydown', cancel)
+    return () => window.removeEventListener('keydown', cancel)
+  }, [selectingRegion, onSelectionModeChange])
 
   const H = aspect ? BASE_W * aspect : 0
 
@@ -104,6 +124,7 @@ export function SheetViewer({ src, evidence, page, hovered, onHover, renderNote 
     if (!el) return
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
+      if (selectionStart.current) return
       const r = el.getBoundingClientRect()
       const mx = e.clientX - r.left
       const my = e.clientY - r.top
@@ -128,15 +149,37 @@ export function SheetViewer({ src, evidence, page, hovered, onHover, renderNote 
     })
   }
 
-  const onPointerDown = (e: React.PointerEvent) => {
-    if (e.button !== 0 || (e.target as Element).closest('.hud')) return
-    ;(e.target as Element).setPointerCapture?.(e.pointerId)
+  const sheetPoint = (e: React.PointerEvent): Pt | null => {
+    const el = frame.current
+    if (!el || !aspect) return null
+    const r = el.getBoundingClientRect()
+    return [(e.clientX - r.left - view.x) / view.k / BASE_W,
+      (e.clientY - r.top - view.y) / view.k / H]
+  }
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || (e.target as Element).closest('.hud') || state !== 'ready') return
+    if (selectingRegion) {
+      const point = sheetPoint(e)
+      if (!point || point.some((value) => value < 0 || value > 1)) return
+      e.preventDefault()
+      e.currentTarget.setPointerCapture(e.pointerId)
+      selectionStart.current = point
+      setDraft(null)
+      setSelectionHint(null)
+      return
+    }
+    e.currentTarget.setPointerCapture(e.pointerId)
     drag.current = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }
     setDragging(true)
   }
   const onPointerMove = (e: React.PointerEvent) => {
     const el = frame.current
     if (!el) return
+    const point = sheetPoint(e)
+    if (selectionStart.current && selectingRegion && point) {
+      setDraft(regionFromPoints(selectionStart.current, point))
+    }
     if (drag.current) {
       const d = drag.current
       setView((v) => ({ ...v, x: d.vx + e.clientX - d.x, y: d.vy + e.clientY - d.y }))
@@ -148,25 +191,45 @@ export function SheetViewer({ src, evidence, page, hovered, onHover, renderNote 
       setCursor(nx >= 0 && nx <= 1 && ny >= 0 && ny <= 1 ? [nx, ny] : null)
     }
   }
-  const onPointerUp = () => {
+  const onPointerUp = (e: React.PointerEvent) => {
+    if (selectionStart.current && selectingRegion) {
+      const point = sheetPoint(e)
+      if (point) {
+        const next = regionFromPoints(selectionStart.current, point)
+        const [x0, y0, x1, y1] = next.bbox
+        if ((x1 - x0) * BASE_W * view.k >= 6 && (y1 - y0) * H * view.k >= 6) {
+          onRegionChange(next)
+        } else {
+          setSelectionHint('Drag a larger box to select a region.')
+        }
+      }
+    }
+    selectionStart.current = null
+    setDraft(null)
+    drag.current = null
+    setDragging(false)
+  }
+
+  const cancelPointer = () => {
+    selectionStart.current = null
+    setDraft(null)
     drag.current = null
     setDragging(false)
   }
 
   const visible = evidence.map((e, i) => ({ e, i })).filter(({ e }) => (e.page ?? 0) === page)
+  const shownRegion = selectingRegion && draft ? draft : region
 
   return (
     <div
       ref={frame}
-      className={`viewer-frame${dragging ? ' dragging' : ''}`}
+      className={`viewer-frame${dragging ? ' dragging' : ''}${selectingRegion ? ' selecting-region' : ''}`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      onPointerLeave={() => {
-        onPointerUp()
-        setCursor(null)
-      }}
-      onDoubleClick={(e) => !(e.target as Element).closest('.hud') && fit()}
+      onPointerCancel={cancelPointer}
+      onPointerLeave={() => setCursor(null)}
+      onDoubleClick={(e) => !selectingRegion && !(e.target as Element).closest('.hud') && fit()}
     >
       {src && (
         <div
@@ -190,6 +253,16 @@ export function SheetViewer({ src, evidence, page, hovered, onHover, renderNote 
             }}
             onError={() => setFailed(src)}
           />
+          {aspect && shownRegion && (
+            <svg className="region-overlay" viewBox={`0 0 ${BASE_W} ${H}`} width={BASE_W} height={H} aria-hidden="true">
+              <path fillRule="evenodd" className="region-shade" d={regionShade(shownRegion, BASE_W, H)} />
+              <rect className="region-outline"
+                x={shownRegion.bbox[0] * BASE_W} y={shownRegion.bbox[1] * H}
+                width={(shownRegion.bbox[2] - shownRegion.bbox[0]) * BASE_W}
+                height={(shownRegion.bbox[3] - shownRegion.bbox[1]) * H}
+                strokeWidth={2 / view.k} />
+            </svg>
+          )}
           {aspect && showEvidence && (
             <svg className="overlay" viewBox={`0 0 ${BASE_W} ${H}`} width={BASE_W} height={H}>
               {visible.map(({ e, i }) => (
@@ -223,6 +296,7 @@ export function SheetViewer({ src, evidence, page, hovered, onHover, renderNote 
       </div>
 
       <div className="hud hud-status glass">
+        {selectingRegion && <span className="selection-instruction">{selectionHint ?? 'Drag on the plan to select a region · Esc to cancel'}</span>}
         <span className="mono">{cursor ? `${cursor[0].toFixed(3)}, ${cursor[1].toFixed(3)}` : '–, –'}</span>
         {renderNote && <span className="render-note">{renderNote}</span>}
       </div>
@@ -243,6 +317,14 @@ export function SheetViewer({ src, evidence, page, hovered, onHover, renderNote 
           Fit
         </button>
         <span className="hud-sep" aria-hidden />
+        <button className={`hud-btn text region-toggle${selectingRegion ? ' active' : ''}`}
+          disabled={state !== 'ready'} aria-pressed={selectingRegion}
+          onClick={() => { cancelPointer(); setSelectionHint(null); onSelectionModeChange(!selectingRegion) }}
+          title="Draw a box to ask about one part of the plan">
+          {selectingRegion ? 'Cancel' : region ? 'Redraw region' : 'Draw region'}
+        </button>
+        {region && <button className="hud-btn text" onClick={() => { cancelPointer(); onRegionChange(null) }}>Clear</button>}
+        <span className="hud-sep" aria-hidden />
         <label className="switch">
           <input type="checkbox" checked={showEvidence} onChange={(e) => setShowEvidence(e.target.checked)} />
           <span className="switch-track" aria-hidden />
@@ -252,6 +334,17 @@ export function SheetViewer({ src, evidence, page, hovered, onHover, renderNote 
       </div>
     </div>
   )
+}
+
+function regionFromPoints(a: Pt, b: Pt): Region {
+  const x = clamp(b[0], 0, 1)
+  const y = clamp(b[1], 0, 1)
+  return { bbox: [Math.min(a[0], x), Math.min(a[1], y), Math.max(a[0], x), Math.max(a[1], y)], page: 0 }
+}
+
+function regionShade(region: Region, w: number, h: number) {
+  const [x0, y0, x1, y1] = region.bbox
+  return `M0 0H${w}V${h}H0Z M${x0 * w} ${y0 * h}H${x1 * w}V${y1 * h}H${x0 * w}Z`
 }
 
 function EvidenceMark({
