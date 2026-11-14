@@ -222,7 +222,26 @@ def _labels(sheet: Sheet) -> List[Text]:
     return [b for b in blocks(sheet.texts) if b.conf >= 0.7 and re.search(r"[A-Za-z]{3}", b.text)]
 
 
+# Words that make a label a room name, for "how many rooms?" with no room type. Outdoor spaces
+# (balcony, terrace) are left out. Matched on the lowercased label, so German umlauts work.
+_ROOM_NAME = re.compile(
+    r"\b(\w*rooms?|bed ?rooms?|kitchen\w*|bath\w*|living|lounge|dining|hall\w*|corridors?|lobby|foyer|"
+    r"entr(y|ance)|wc|toilets?|lavatory|office|study|nursery|utility|laundry|pantry|stor(e|age)|"
+    r"closet|wardrobe|cloaks?|garage|cellar|basement|attic|loft|sauna|gym|workshop|reception|"
+    r"zimmer|k[uü]che|bad|wohnen|schlafen|essen|flur|diele|korridor|abstellraum|reduit|keller|"
+    r"chambre|cuisine|salon|séjour|sejour|couloir)\b"
+)
+
+
+def _is_room_question(question: str) -> bool:
+    """A count of rooms in general: 'how many rooms are there?', not 'how many group rooms?'."""
+    return bool(re.search(r"\b(how many|number of|count(?: the| all)?)\s+(?:the\s+|all\s+)?rooms?\b",
+                          question.lower()))
+
+
 def _match_labels(labels: List[Text], question: str) -> List[Text]:
+    if _is_room_question(question):
+        return [b for b in labels if len(b.text) <= 40 and _ROOM_NAME.search(b.text.lower())]
     q = set(content(question)) - GENERIC - {"room"} | ({"room"} if re.search(r"\b\w+ rooms?\b", question.lower()) else set())
     q = {w for w in q if not w.isdigit()}
     if not q:

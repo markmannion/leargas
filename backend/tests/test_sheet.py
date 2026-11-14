@@ -66,3 +66,10 @@ def test_printed_value_prefers_exact_row():
 def test_label_count():
     s = _sheet([T("Group Room", 0, 0, 100, 20), T("Group Room", 300, 0, 400, 20), T("Plant Room", 600, 0, 700, 20)])
     assert A.tool_label_count(s, "How many group rooms are there?").value == 2
+
+
+def test_label_count_all_rooms():
+    s = _sheet([T("Upload feature - sample floor plan", 0, 0, 400, 20), T("Living room", 0, 100, 100, 120),
+                T("Bedroom", 300, 100, 400, 120), T("Kitchen", 300, 300, 400, 320), T("Balcony", 0, 300, 100, 320)])
+    assert A.tool_label_count(s, "How many rooms are there?").value == 3
+    assert A.tool_label_count(s, "How many bedrooms are there?").value == 1
