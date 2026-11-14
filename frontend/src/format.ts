@@ -70,6 +70,8 @@ export const TYPE_LABEL: Record<QuestionType, string> = {
 
 /** Rough language tag for a dataset question, so the list can show it. */
 export function guessLang(q: string): string {
+  // English questions quote German room names ('Küche'), so check English first.
+  if (/^(how|what|which|is|are|does|do|in|on)\b/i.test(q.trim())) return 'EN'
   if (/[äöüß«»]|\b(wie|viele|der|die|das|auf|diesem)\b/i.test(q)) return 'DE'
   if (/\b(kuinka|monta|pohjapiirustuksessa|huonetta)\b/i.test(q)) return 'FI'
   if (/\b(combien|pièces|sur ce plan|surface)\b/i.test(q)) return 'FR'
