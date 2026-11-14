@@ -207,13 +207,13 @@ function AskCell({ s }: { s: Session }) {
   const box = useRef<HTMLTextAreaElement>(null)
   const d = s.selected
   const blocked = !d || s.busy || s.selectingRegion
-  const submit = (q: string, spoken = false) => {
+  const submit = (q: string) => {
     const t = q.trim()
     if (!t || blocked) return
     setText(t)
-    void s.ask(t, { spoken })
+    void s.ask(t)
   }
-  const mic = useVoiceInput((t) => submit(t, true))
+  const mic = useVoiceInput((t) => submit(t))
   const listening = mic.state === 'recording'
 
   // "/" puts the cursor in the question box, as in a search field.
@@ -268,14 +268,6 @@ function AskCell({ s }: { s: Session }) {
             <button type="submit" className="cs-btn cs-go" disabled={blocked || !text.trim()}>{s.busy ? 'Asking…' : 'Ask'}</button>
           </div>
         </div>
-        {s.voice && (
-          <div className="cs-aloud" role="group" aria-label="Read answers aloud">
-            <span className="cs-label">Read answers aloud</span>
-            {([['off', 'Off'], ['spoken', 'When I speak'], ['always', 'Always']] as const).map(([v, label]) => (
-              <button key={v} type="button" aria-pressed={s.readAloud === v} onClick={() => s.setReadAloud(v)}>{label}</button>
-            ))}
-          </div>
-        )}
       </form>
 
       <div className="cs-takeoff">
