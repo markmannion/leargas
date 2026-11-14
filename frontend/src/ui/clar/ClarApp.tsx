@@ -225,15 +225,6 @@ function ModelStatus({ s }: { s: Session }) {
       used: s.engine === 'gemma_base', about: 'Base Gemma, before fine-tuning.' },
   ]
   const title = s.health ? `${s.health.gold_questions_loaded.toLocaleString()} reference questions loaded` : undefined
-  if (rows.every((r) => r.light === 'ready' || !r.used)) {
-    const detail = rows.map((r) => `${r.name}: ${LIGHT_WORD[r.light]}${r.used ? '' : ' (not used by this setting)'}`).join('\n')
-    return (
-      <p className="ms-ok" role="status" title={title ? `${detail}\n${title}` : detail}>
-        {rows.filter((r) => r.used).map((r) => <i key={r.id} className={`ms-light is-${r.lane}`} aria-hidden="true" />)}
-        All checks ready
-      </p>
-    )
-  }
   return (
     <ul className="ms" role="status" aria-label="Model status" title={title}>
       {rows.map((r) => (

@@ -262,10 +262,6 @@ button:disabled { cursor: default; }
 /* Model status: one light per model, in its cross-check colour. */
 .ms { display: grid; grid-template-columns: auto auto auto; column-gap: 6px; row-gap: 1px; margin: 0; padding: 0; list-style: none; font-size: 11px; line-height: 1.3; cursor: default; }
 .ms-row { display: contents; }
-.ms-ok { display: flex; align-items: center; gap: 4px; margin: 0; font-size: 12.5px; color: var(--ink-2); cursor: default; }
-.ms-ok .ms-light:last-of-type { margin-right: 4px; }
-.ms-light.is-measure { background: var(--measure); border-color: var(--measure); }
-.ms-light.is-model { background: var(--model); border-color: var(--model); }
 .ms-light { align-self: center; width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--ink-3); }
 .ms-name { font-weight: 650; font-family: var(--font-semi); letter-spacing: 0.05em; text-transform: uppercase; }
 .ms-word { color: var(--ink-2); }
@@ -485,6 +481,7 @@ button:disabled { cursor: default; }
 .ca-meta { display: flex; align-items: baseline; gap: 10px; }
 .ca-meta .cs-label { flex: 1; }
 .ca-ms { font-size: 11px; color: var(--ink-3); }
+.ca-cost { font-size: 12px; font-weight: 700; color: var(--ink); }
 .ca-q { margin: 3px 0 6px; font-size: 13px; color: var(--ink-2); }
 
 .ca-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 12px; }
