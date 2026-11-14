@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import uuid
@@ -17,7 +18,9 @@ from . import drawings
 router = APIRouter()
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 ALLOWED_SUFFIXES = {".pdf", ".png", ".jpg", ".jpeg", ".dxf"}
-MAX_IMAGE_PIXELS = 40_000_000
+# Real drawing sheets are big: Stoa's example PNGs are 67 MP (10200 x 6600) and 139 MP (14000 x 9902).
+# The sheet reader reads them at full size, so the limit only guards against absurd files.
+MAX_IMAGE_PIXELS = int(os.environ.get("LEARGAS_MAX_UPLOAD_PIXELS", 250_000_000))
 
 
 def upload_root() -> Path:
@@ -58,6 +61,8 @@ def _validate(path: Path) -> str:
             return "dxf"
         from PIL import Image
 
+        # Pillow warns above its own default (~89 MP); use our limit instead, checked just below
+        Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
         with warnings.catch_warnings():
             warnings.simplefilter("error", Image.DecompressionBombWarning)
             with Image.open(path) as image:
