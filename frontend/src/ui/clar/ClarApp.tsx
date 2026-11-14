@@ -79,7 +79,7 @@ export default function ClarApp() {
       <aside className="cs" aria-label="Title strip">
         <header className="cs-head">
           <h1 className="cs-mark">Léargas</h1>
-          <Connection s={s} />
+          <ModelStatus s={s} />
         </header>
 
         <section className="cs-cell cs-drawing">
@@ -129,16 +129,45 @@ export default function ClarApp() {
 
 const today = new Date().toLocaleDateString('en-IE', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '.')
 
-function Connection({ s }: { s: Session }) {
-  const text = {
-    offline: 'Backend offline',
-    connecting: 'Connecting',
-    mock: 'Mock API',
-    live: 'Live',
-    degraded: s.gemmaState === 'checking' ? 'Checking Gemma' : s.gemmaState === 'unconfigured' ? 'Geometry only' : 'Gemma offline',
-  }[s.connection]
+type Light = 'ready' | 'down' | 'checking' | 'off' | 'mock'
+
+const LIGHT_WORD: Record<Light, string> = { ready: 'Ready', down: 'Offline', checking: 'Checking', off: 'Not set up', mock: 'Mock' }
+
+function gemmaLight(st: string | undefined, backend: Session['connection']): Light {
+  if (backend === 'offline') return 'down'
+  if (backend === 'connecting') return 'checking'
+  if (backend === 'mock') return 'mock'
+  if (st === 'available') return 'ready'
+  if (st === 'checking') return 'checking'
+  if (st === 'unconfigured' || st === 'disabled') return 'off'
+  return 'down'
+}
+
+/** One status light per model, in its cross-check colour. Models the current setting won't use are dimmed. */
+function ModelStatus({ s }: { s: Session }) {
+  const models = s.health?.gemma_status?.models ?? {}
+  const geo: Light = s.connection === 'offline' ? 'down' : s.connection === 'connecting' ? 'checking' : s.connection === 'mock' ? 'mock' : 'ready'
+  const rows: { id: string; lane: 'measure' | 'model'; name: string; light: Light; used: boolean; about: string }[] = [
+    { id: 'geo', lane: 'measure', name: 'Geometry', light: geo, used: s.engine !== 'gemma_ft' && s.engine !== 'gemma_base',
+      about: 'Measures DXF and IFC files, and reads the text and lines on large sheets.' },
+    { id: 'ft', lane: 'model', name: 'Gemma FT', light: gemmaLight(models['gemma-ft'] ?? s.health?.gemma_status?.status, s.connection),
+      used: s.engine === 'auto' || s.engine === 'gemma_ft', about: 'Fine-tuned Gemma, which reads the drawing image.' },
+    { id: 'base', lane: 'model', name: 'Gemma base', light: gemmaLight(models['gemma-base'] ?? s.health?.gemma_status?.status, s.connection),
+      used: s.engine === 'gemma_base', about: 'Base Gemma, before fine-tuning.' },
+  ]
   const title = s.health ? `${s.health.gold_questions_loaded.toLocaleString()} reference questions loaded` : undefined
-  return <p className={`cs-conn is-${s.connection}`} role="status" title={title}>{text}</p>
+  return (
+    <ul className="ms" role="status" aria-label="Model status" title={title}>
+      {rows.map((r) => (
+        <li key={r.id} className={`ms-row is-${r.lane} is-${r.light}${r.used ? ' is-used' : ''}`}
+          title={`${r.about} ${LIGHT_WORD[r.light]}.${r.used ? '' : ' Not used by the current setting.'}`}>
+          <i className="ms-light" aria-hidden="true" />
+          <span className="ms-name">{r.name}</span>
+          <span className="ms-word">{LIGHT_WORD[r.light]}</span>
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 function DrawingTitle({ d }: { d: Drawing }) {
@@ -246,12 +275,6 @@ function AskCell({ s }: { s: Session }) {
           <label><input type="radio" name="cl-mode" checked={s.areaMode === 'whole_rooms'} onChange={() => s.changeAreaMode('whole_rooms')} /> Whole rooms</label>
           <label><input type="radio" name="cl-mode" checked={s.areaMode === 'intersection'} onChange={() => s.changeAreaMode('intersection')} /> Exact cut</label>
         </fieldset>
-      )}
-      {s.connection === 'degraded' && (
-        <p className="cs-hint cs-warn" role="status">
-          {s.gemmaState === 'checking' ? 'Checking whether Gemma is up.' : s.gemmaState === 'unconfigured' ? 'Gemma is not connected.' : 'Gemma is offline.'}
-          {' '}Geometry and the sheet reader still answer.
-        </p>
       )}
     </section>
   )

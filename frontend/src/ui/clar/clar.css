@@ -237,7 +237,7 @@ button:disabled { cursor: default; }
 
 .cs-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 10px 14px 9px;
@@ -251,9 +251,24 @@ button:disabled { cursor: default; }
   letter-spacing: -0.015em;
   line-height: 1;
 }
-.cs-conn { margin: 0; font-size: 11.5px; color: var(--ink-2); }
-.cs-conn.is-offline, .cs-conn.is-degraded { color: var(--red); }
-.cs-conn.is-live::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 6px; background: var(--ink); vertical-align: 1px; }
+
+/* Model status: one light per model, in its cross-check colour. */
+.ms { display: grid; grid-template-columns: auto auto auto; column-gap: 6px; row-gap: 1px; margin: 0; padding: 0; list-style: none; font-size: 10.5px; line-height: 1.3; cursor: default; }
+.ms-row { display: contents; }
+.ms-light { align-self: center; width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--ink-3); }
+.ms-name { font-weight: 650; font-stretch: 78%; letter-spacing: 0.05em; text-transform: uppercase; }
+.ms-word { color: var(--ink-2); }
+.is-measure .ms-name { color: var(--measure); }
+.is-model .ms-name { color: var(--model); }
+.is-measure.is-ready .ms-light { background: var(--measure); border-color: var(--measure); box-shadow: 0 0 0 2.5px var(--measure-tint); }
+.is-model.is-ready .ms-light { background: var(--model); border-color: var(--model); box-shadow: 0 0 0 2.5px var(--model-tint); }
+.ms-row.is-down .ms-light { border-color: var(--red); background: linear-gradient(135deg, transparent 43%, var(--red) 43% 57%, transparent 57%); }
+.ms-row.is-down .ms-word { color: var(--red); }
+.ms-row.is-checking .ms-light { animation: ms-blink 1s steps(2, jump-none) infinite; }
+.ms-row.is-mock .ms-light { border-style: dashed; }
+.ms-row:not(.is-used) > * { opacity: 0.4; }
+@keyframes ms-blink { 50% { background: var(--ink-3); } }
+@media (prefers-reduced-motion: reduce) { .ms-row.is-checking .ms-light { animation: none; background: var(--hair); } }
 
 .cs-cell { padding: 9px 14px 11px; border-bottom: 1px solid var(--ink); }
 
