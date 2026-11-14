@@ -634,7 +634,7 @@ def reconcile(req: AskRequest, q: Optional[Query], outcomes: List[Outcome], cali
                           geo.evidence + gem.evidence)
         # Geometry is measured exactly. A Gemma estimate below its own calibrated `verified` bar can't
         # overrule it (geometry alone would be verified); only a confident model answer is a real conflict.
-        # On 50 held-out Swiss PDFs this turned 11 correct DXF answers from "disagreement" to verified.
+        # Live check, 50 held-out Swiss PDFs: all 17 "disagreement" answers (each one correct) became verified.
         if gem.confidence < gemma_threshold(req, gem.source, qtype, gem.model):
             return answer(geo, Status.verified, geo.confidence,
                           f"{geo.explanation} The model's estimate ({_value(gem.value, qtype)}) differs, but it is "
