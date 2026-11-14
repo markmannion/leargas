@@ -22,6 +22,7 @@ import { evidenceZone, shapeCentre, zoneOf } from '../../core/shapes'
 import { OpeningTable, RoomTable, SlabTable } from '../../core/breakdowns'
 import { speakableAnswer, useVoiceInput } from '../../voice'
 import { UPLOAD_ACCEPT, useUpload } from '../../core/upload'
+import { answerCost, formatUsd } from '../../core/cost'
 import { ClarSheet } from './ClarSheet'
 import { ClarRegister } from './ClarRegister'
 import { CrossCheck } from './CrossCheck'
@@ -367,12 +368,14 @@ function AnswerCell({ s, answer: a, aspect, showMarks, setShowMarks, onPick }: {
   const linked = { answer: a, hovered: s.hovered, onHover: s.setHovered, onPick }
   const longText = typeof a.answer === 'string' && a.answer.length > 14
   const sp = s.speaker
+  const cost = answerCost(a)
 
   return (
     <article className={`ca is-${a.status}`} aria-live="polite">
       <div className="ca-meta">
         <span className="cs-label">{s.activeEntry ? ref(s.activeEntry) : 'Answer'} · {TYPE_LABEL[a.type]}{a.region ? ' · in cloud' : ''}</span>
         {a.latency_ms != null && <span className="ca-ms">{a.latency_ms < 1000 ? `${Math.max(1, Math.round(a.latency_ms))} ms` : `${(a.latency_ms / 1000).toFixed(1)} s`}</span>}
+        {cost && <span className="ca-ms ca-cost" title={`Estimated compute cost of 1,000 answers like this one. ${cost.note}`}>≈ {formatUsd(cost.per1k)} per 1,000</span>}
         {s.voice && (
           <button type="button" className="cs-link" onClick={() => (sp.speaking ? sp.stop() : void sp.speak(speakableAnswer(a)))}
             title={sp.error ?? undefined}>{sp.speaking ? 'Stop reading' : 'Read aloud'}</button>
