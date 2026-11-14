@@ -74,6 +74,16 @@ def _validate(path: Path) -> str:
         raise HTTPException(400, "This plan could not be read. Upload a valid, unencrypted PDF, PNG, JPEG or DXF file.") from exc
 
 
+def _warm_sheet(path: Path) -> None:
+    """Start reading the sheet's text in the background, so the first question doesn't wait for OCR."""
+    try:
+        from .sheet.words import warm
+
+        warm(path)
+    except Exception:
+        pass  # the sheet reader is optional
+
+
 @router.post("/drawings/upload", status_code=201)
 async def upload(request: Request, filename: str = Query(..., min_length=1, max_length=255)) -> dict:
     """The request body is the original file bytes; filename is a query parameter."""
@@ -110,6 +120,8 @@ async def upload(request: Request, filename: str = Query(..., min_length=1, max_
         }
         (pending / "plan.json").write_text(json.dumps(plan), encoding="utf-8")
         pending.rename(root / identifier)
+        if suffix in (".pdf", ".png", ".jpg", ".jpeg"):
+            _warm_sheet(root / identifier / name)
         return plan
     except OSError as exc:
         raise HTTPException(503, "The plan could not be saved. Check the server's drawing storage and try again.") from exc

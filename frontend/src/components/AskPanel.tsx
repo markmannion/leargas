@@ -28,14 +28,30 @@ const STARTERS = [
   'What is the total floor area in m²?',
 ]
 
+// Door and window counts read off the image alone: gemma-ft is 14–20% right on held-out CubiCasa
+// and confidence is below 0.5 on 94–100% of them, so the router answers cannot_verify. The DXF/IFC
+// engines count them fine, so this only applies to drawings with no vector twin.
+const RASTER_WEAK = /\b(doors?|windows?|ovea|ovi|ikkun\w*)\b/i
+
+function rasterOnly(d: Drawing): boolean {
+  if (d.files) return !d.files.some((f) => f === 'dxf' || f === 'ifc')
+  return d.collection === 'cubicasa5k'
+}
+
 export function AskPanel({ drawing, busy, onAsk, voice, region, selectingRegion, onSelectRegion, onClearRegion, areaMode, onAreaMode, onMeasureAreas, children }: Props) {
   const [text, setText] = useState('')
   const [lang, setLang] = useState<string>('all')
 
+  const weak = drawing !== null && rasterOnly(drawing)
   const questions = useMemo(() => {
-    const qs = (drawing?.questions ?? []).map((q) => ({ ...q, lang: guessLang(q.question) }))
-    return qs
-  }, [drawing])
+    const qs = (drawing?.questions ?? []).map((q) => ({
+      ...q,
+      lang: guessLang(q.question),
+      weak: weak && RASTER_WEAK.test(q.question),
+    }))
+    return [...qs.filter((q) => !q.weak), ...qs.filter((q) => q.weak)]
+  }, [drawing, weak])
+  const starters = weak ? [...STARTERS.filter((q) => !RASTER_WEAK.test(q)), ...STARTERS.filter((q) => RASTER_WEAK.test(q))] : STARTERS
   const langs = useMemo(() => [...new Set(questions.map((q) => q.lang))].sort(), [questions])
   const shown = lang === 'all' ? questions : questions.filter((q) => q.lang === lang)
 
@@ -167,7 +183,7 @@ export function AskPanel({ drawing, busy, onAsk, voice, region, selectingRegion,
             <h3 className="block-title">Try asking</h3>
           </div>
           <ul className="question-list">
-            {STARTERS.map((q) => (
+            {starters.map((q) => (
               <li key={q}>
                 <button type="button" onClick={() => submit(q)} disabled={busy}>
                   <span className="q-text">{q}</span>
@@ -195,12 +211,13 @@ export function AskPanel({ drawing, busy, onAsk, voice, region, selectingRegion,
             )}
           </div>
           <ul className="question-list">
-            {shown.map((q: DatasetQuestion & { lang: string }, i) => (
+            {shown.map((q: DatasetQuestion & { lang: string; weak: boolean }, i) => (
               <li key={i}>
-                <button type="button" onClick={() => submit(q.question)} disabled={busy || selectingRegion}>
+                <button type="button" onClick={() => submit(q.question)} disabled={busy || selectingRegion}
+                  title={q.weak ? 'The model rarely gets door and window counts right from the image alone, so it will usually decline to answer.' : undefined}>
                   <span className="q-text">{q.question}</span>
                   <span className="q-tags mono">
-                    {q.lang} · {TYPE_LABEL[q.type]}
+                    {q.lang} · {TYPE_LABEL[q.type]}{q.weak ? ' · model unreliable' : ''}
                   </span>
                 </button>
               </li>

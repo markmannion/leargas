@@ -684,6 +684,7 @@
         "geometry_ifc",
         "gemma_ft",
         "gemma_base",
+        "sheet_reader",
         "mock"
       ],
       "title": "Source",

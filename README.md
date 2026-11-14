@@ -1,40 +1,144 @@
-# leargas
+# BlueprintTrace
 
-Repo for the Junction 26 Stoa Track — **BlueprintTrace**, *"Ask the building. See the proof."*
+BlueprintTrace answers questions about construction drawings.
+It shows the evidence for each answer on the drawing.
+If it cannot find the evidence, it tells you. It does not guess.
 
-A voice-first, citation-backed Q&A assistant for construction drawings: ask a question, get an answer with a highlighted region on the actual sheet it came from, and an honest refusal when the evidence isn't there.
+We made BlueprintTrace for the Stoa track at Junction 2026.
 
-## Workstreams
+## What it does
 
-| Track | People | Goal |
-|---|---|---|
-| App build | Person 1, Person 2 | Ingest drawings → retrieve evidence → answer with Gemini, citations, and a highlighted region; voice via ElevenLabs |
-| Hugging Face model training | Task A, Task B | Train a quantity-takeoff model on the challenge's Hugging Face drawing dataset (~14k drawings, ~120k questions), split in parallel by file format: **Task A** — raster (PDF/PNG/JPEG/SVG), **Task B** — structured CAD/BIM (DWG/DXF/IFC) |
+1. You select a drawing, or you upload your own drawing.
+2. You ask a question. You can type it or say it.
+3. BlueprintTrace gives an answer, a status and the evidence.
+4. The evidence shows on the drawing as boxes, outlines or points.
 
-Full build spec, architecture, and task breakdown live outside version control (see below).
+Example questions:
 
-## Getting the dataset
+- "How many windows are on this floor plan?"
+- "What is the floor area of the library?"
+- "How many metres of skirting board does the fitness room need?"
+- "How many pipe supports are on this sheet?"
+- "What is the slab area by type?"
 
-The dataset is a private Hugging Face dataset: [leargas/junction-dataset](https://huggingface.co/datasets/leargas/junction-dataset). Ask to be added to the `leargas` org.
+## The answer status
 
-```powershell
-pip install -U huggingface_hub
-hf auth login   # Read token from https://huggingface.co/settings/tokens
-hf download leargas/junction-dataset --repo-type=dataset --local-dir datasets/junction-dataset
-```
+Each answer has one of four statuses.
 
-`datasets/` is gitignored. Don't commit dataset files.
+| Status | What it means |
+|---|---|
+| Verified | One reliable source gave the answer, or two sources gave the same answer. |
+| Partial | There is an answer, but it is an estimate. Check the evidence. |
+| Disagreement | Two sources gave different answers. Check the drawing. |
+| Cannot verify | No source is sure. BlueprintTrace gives no answer. |
 
-## Docs
+## Features
 
-Planning and task docs are kept locally in `explainer_docs/` (git-ignored — not pushed to this repo):
+### Answers from CAD and BIM files
 
-- `blueprint-trace-plan.md` — the three original architecture options considered.
-- `blueprint-trace-combined-plan.md` — the final build plan: resequenced architecture, Task A/Task B split for the Hugging Face track, hour-by-hour schedule, eval plan, demo script.
-- `blueprint-trace-explainer.md` — plain-language walkthrough of the approach.
+If a drawing has a DXF file or an IFC model, BlueprintTrace reads the geometry from that file.
+It counts items and measures areas from the real lines and shapes.
+These answers are the most reliable.
 
-Share these with teammates directly (Slack/Drive/etc.) since they won't come through on `git clone`.
+### Sheet reader for large drawing sheets
 
-## Data license note
+Many drawings are large sheets with small text, such as a PDF page or a large scan.
+The sheet reader reads the text and the lines on the full sheet. It does not make the sheet smaller first.
 
-The Hugging Face dataset used for model training is **non-commercial, Junction-challenge use only**. Any dataset snapshots, checkpoints, or derived artifacts pushed to the Hugging Face Hub must be kept **private** for the duration of the challenge.
+The sheet reader can:
+
+- Read values that are printed on the sheet, for example a table of floor areas.
+- Count equipment tags, for example pumps (FP-1, FP-2) or pipe supports (PS-1, PS-2).
+- Count room labels, for example all rooms with the name "Group Room".
+- Find the drawing scale from a scale bar, a scale ratio (1:200) or a chain of dimensions.
+- Measure the floor area of a room from its walls and the drawing scale.
+- Measure skirting board length: the room perimeter minus the door openings.
+- Count door and window openings in the walls.
+- Find slab callouts (thickness, bar size and spacing) and the area near each callout.
+- Find the largest printed dimension, for example the overall length of a building.
+
+Measured values (areas, lengths and openings) are estimates. They have the status "Partial".
+A value that is printed on the sheet and read clearly can have the status "Verified".
+
+### Vision model for floor plan images
+
+For small floor plan images, a vision model reads the image.
+The model is Gemma 4. We fine-tuned it on the training part of the challenge dataset.
+The model also gives a confidence value. We measured where that value is reliable.
+Below that level, the answer becomes "Partial" or "Cannot verify".
+
+### Questions in many languages
+
+You can ask questions in the languages of the dataset, for example English, German, French and Finnish.
+A language model reads questions that do not match a known pattern.
+
+### Other features
+
+- Upload: add your own PNG, JPG, PDF, DXF or IFC file (maximum 60 MB).
+- Region: draw a box on the sheet to ask about one part of the drawing only.
+- Voice: say your question and hear the answer (needs an ElevenLabs key).
+
+## Limits
+
+- The sheet reader uses text recognition (OCR). It can miss text or read it incorrectly.
+- Room areas need closed walls. If a room is open to a corridor, the result can include the corridor. BlueprintTrace then tells you that the rooms can be merged.
+- Door and window counts on large sheets are estimates. Double doors count as one opening.
+- Slab areas can include only one panel of a slab. Always check the highlighted regions.
+- The vision model is weak on door and window counts in small images. These answers often get "Cannot verify".
+
+## How to run it
+
+All commands start from the repository root.
+
+1. Get access to the private dataset on Hugging Face. Ask to join the `leargas` organisation.
+2. Download the dataset:
+
+   ```bash
+   hf download leargas/junction-dataset --repo-type=dataset --local-dir datasets/junction-dataset
+   ```
+
+3. Install the backend:
+
+   ```bash
+   pip install -r backend/requirements-dxf.txt -r backend/requirements-ifc.txt -r backend/requirements-sheet.txt
+   ```
+
+4. Build the question templates (do this one time on each machine):
+
+   ```bash
+   cd backend && python -m app.query.build_templates --questions ../datasets/junction-dataset/questions.jsonl
+   ```
+
+5. Start the backend:
+
+   ```bash
+   uvicorn app.main:app --app-dir backend --port 8000
+   ```
+
+6. Start the frontend in a second terminal, then open http://localhost:5173:
+
+   ```bash
+   cd frontend && npm install && npm run dev
+   ```
+
+7. Optional: to use the vision model, set `MODEL_BASE_URL` and `MODEL_API_KEY` in `.env`. See `.env.example`.
+   If port 8000 is in use (for example by an SSH tunnel to the model server), start the backend on port 8100.
+   Then set `LEARGAS_API=http://127.0.0.1:8100` before you start the frontend.
+
+## Where the code is
+
+| Folder | What it contains |
+|---|---|
+| `backend/` | The API, the question parser, the router and the engines (DXF, IFC, sheet reader). |
+| `backend/app/sheet/` | The sheet reader. |
+| `frontend/` | The web interface (React). |
+| `model/` | Training and evaluation of the vision model. |
+| `infra/` | Scripts for the GPU server that runs the model. |
+| `eval/` | Scoring scripts. |
+| `contracts/` | The answer format as JSON Schema. |
+
+## Data licence
+
+The challenge dataset is for non-commercial use at Junction only.
+Do not commit dataset files to this repository.
+Keep all models and files made from the dataset private on Hugging Face.

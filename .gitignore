@@ -176,6 +176,10 @@ data/
 # Internal docs and planning notes (not committed)
 docs/
 blueprint-trace-build-plan.md
+blueprint-trace-plan.md
 mark-tasks.md
 who-does-what.md
 infra/verda.local.md
+
+# Stoa example sheets (not ours to publish)
+tricky_questions/
