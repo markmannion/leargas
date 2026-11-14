@@ -134,8 +134,11 @@ def test_gemma_specialist_routing(monkeypatch, tmp_path):
             asked.append(model)
             return {"ok": True, "answer": 3, "unit": "count", "confidence": 0.9}
 
-    img = tmp_path / "x.png"
+    (tmp_path / "data" / "cubicasa5k").mkdir(parents=True)
+    img = tmp_path / "data" / "cubicasa5k" / "x.png"
     img.write_bytes(b"")
+    up = tmp_path / "p.png"
+    up.write_bytes(b"")
     served = {"gemma-ft", "gemma-base", "gemma-ft-cc"}
     monkeypatch.setattr(router, "_import_model_pkg", lambda: FakeClient)
     monkeypatch.setenv("MODEL_BASE_URL", "http://x/v1")
@@ -148,9 +151,13 @@ def test_gemma_specialist_routing(monkeypatch, tmp_path):
     assert router.run_gemma(Source.gemma_ft, img, "How many windows are shown on this floor plan?").model == "gemma-ft-cc"
     assert router.run_gemma(Source.gemma_ft, img, "How many saunas are on this floor plan?").model == "gemma-ft"
     assert router.run_gemma(Source.gemma_base, img, "How many doors are shown?").model == "gemma-base"
+    # only measured on CubiCasa: other drawings stay on gemma-ft unless the path filter is cleared
+    assert router.run_gemma(Source.gemma_ft, up, "How many doors are shown?").model == "gemma-ft"
+    monkeypatch.setattr(router, "GEMMA_SPECIALIST_PATHS", ())
+    assert router.run_gemma(Source.gemma_ft, up, "How many doors are shown?").model == "gemma-ft-cc"
     served.discard("gemma-ft-cc")  # specialist down -> falls back to gemma-ft
     assert router.run_gemma(Source.gemma_ft, img, "How many doors are shown?").model == "gemma-ft"
-    assert asked == ["gemma-ft", "gemma-ft-cc", "gemma-ft", "gemma-base", "gemma-ft"]
+    assert asked == ["gemma-ft", "gemma-ft-cc", "gemma-ft", "gemma-base", "gemma-ft", "gemma-ft-cc", "gemma-ft"]
 
     # the specialist's answers use its own calibration
     monkeypatch.setattr(router, "GEMMA_VERIFIED_OVERRIDE", None)

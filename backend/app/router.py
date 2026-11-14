@@ -77,6 +77,10 @@ GEMMA_SPECIALIST = os.environ.get("LEARGAS_GEMMA_SPECIALIST", "")
 GEMMA_SPECIALIST_RE = re.compile(os.environ.get(
     "LEARGAS_GEMMA_SPECIALIST_RE",
     r"\bwindows?\b|ikkun|\bdoors?\b|\bovea?\b|\bsinks?\b|wash ?basins?|pesu- ja tiskial|\bshowers?\b|bathtubs?|suihku"), re.I)
+# Drawings the specialist may answer (path prefixes, comma separated). It was only measured on
+# CubiCasa, so that is the default; set to "" to let it answer on every drawing, uploads included.
+GEMMA_SPECIALIST_PATHS = tuple(p for p in os.environ.get(
+    "LEARGAS_GEMMA_SPECIALIST_PATHS", "data/cubicasa5k/").split(",") if p)
 GEMMA_PARTIAL = float(os.environ.get("LEARGAS_GEMMA_PARTIAL", 0.5))
 GEMMA_TIMEOUT = float(os.environ.get("LEARGAS_GEMMA_TIMEOUT", 15))
 GEMMA_COMPARE_WAIT = float(os.environ.get("LEARGAS_GEMMA_COMPARE_WAIT", 1))
@@ -397,6 +401,7 @@ def run_gemma(source: Source, image: Optional[Path], question: str,
         return out
     name = "gemma-ft" if source == Source.gemma_ft else "gemma-base"
     if (source == Source.gemma_ft and GEMMA_SPECIALIST and GEMMA_SPECIALIST_RE.search(question)
+            and (not GEMMA_SPECIALIST_PATHS or any(p in (rel or Path(image).as_posix()) for p in GEMMA_SPECIALIST_PATHS))
             and gemma_status.status(GEMMA_SPECIALIST)["available"]):
         name = GEMMA_SPECIALIST
     out.model = name
