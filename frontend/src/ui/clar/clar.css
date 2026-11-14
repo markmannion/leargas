@@ -316,22 +316,81 @@ button:disabled { cursor: default; }
 .cs-scope button:disabled { opacity: 0.38; }
 
 .cs-ask form { display: block; }
+.cs-q-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
+.cs-q-key { font-size: 10.5px; color: var(--ink-3); }
+.cs-q-key kbd {
+  display: inline-block;
+  min-width: 15px;
+  padding: 0 3px;
+  border: 1px solid var(--hair);
+  border-bottom-width: 2px;
+  font: 600 10px/14px var(--font);
+  text-align: center;
+  color: var(--ink-2);
+}
+
+/* The question box: a framed field you can see you type into, with Speak and Ask inside it. */
+.cs-q {
+  border: 1.5px solid var(--ink);
+  background: var(--paper);
+  cursor: text;
+  transition: box-shadow 120ms, border-color 120ms;
+}
+.cs-q:hover:not(.is-off) { box-shadow: 0 0 0 3px var(--wash); }
+.cs-q:focus-within, .cs-q:focus-within:hover { box-shadow: 0 0 0 3px var(--hl); }
+.cs-q.is-off { border-color: var(--hair); background: var(--wash); cursor: default; }
+.cs-q.is-listening, .cs-q.is-listening:hover, .cs-q.is-listening:focus-within { border-color: var(--red); box-shadow: 0 0 0 3px rgba(205, 42, 29, 0.18); }
 .cs-ask textarea {
   display: block;
   width: 100%;
-  margin-top: 2px;
-  padding: 0 2px;
+  min-height: 62px;
+  padding: 9px 10px 4px;
   border: 0;
-  border-bottom: 1px solid var(--ink);
   resize: none;
   font-size: 15.5px;
-  line-height: 26px;
-  background: transparent linear-gradient(transparent 25px, var(--hair) 25px) 0 0 / 100% 26px;
+  line-height: 1.4;
+  background: transparent;
+  caret-color: var(--red);
 }
-.cs-ask textarea:focus { outline: none; background-color: #fffbe0; }
+.cs-ask textarea:focus { outline: none; }
 .cs-ask textarea::placeholder { color: var(--ink-3); }
+.cs-q.is-listening textarea::placeholder { color: var(--red); }
+.cs-q-bar { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 8px; border-top: 1px solid var(--hair); }
+.cs-q-hint { flex: 1; min-width: 0; font-size: 11px; color: var(--ink-3); }
 
-.cs-ask-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+/* Speak: a mic button that is unmistakably on while it listens. */
+.cs-mic {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px 4px 8px;
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  background: var(--paper);
+  font-size: 12px;
+  font-weight: 620;
+  font-stretch: 86%;
+}
+.cs-mic:hover:not(:disabled) { background: var(--wash); }
+.cs-mic:disabled { opacity: 0.38; }
+.cs-mic.is-recording { border-color: var(--red); background: var(--red); color: #fff; animation: cs-pulse 1.2s ease-in-out infinite; }
+.cs-mic.is-recording:hover:not(:disabled) { background: #b02216; }
+@keyframes cs-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(205, 42, 29, 0.45); } 50% { box-shadow: 0 0 0 5px rgba(205, 42, 29, 0); } }
+@media (prefers-reduced-motion: reduce) { .cs-mic.is-recording { animation: none; } }
+
+.cs-aloud { display: flex; align-items: center; margin-top: 8px; }
+.cs-aloud .cs-label { margin-right: 10px; }
+.cs-aloud button {
+  padding: 3px 8px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  font-size: 11.5px;
+  font-weight: 560;
+  font-stretch: 88%;
+}
+.cs-aloud button + button { border-left: 0; }
+.cs-aloud button[aria-pressed='true'] { background: var(--ink); color: var(--paper); }
+
 .cs-hint { flex: 1; margin: 0; font-size: 11.5px; color: var(--ink-2); }
 .cs-warn { color: var(--red); }
 .cs-ask > .cs-hint { margin-top: 8px; }
