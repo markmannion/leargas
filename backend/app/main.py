@@ -10,14 +10,14 @@ Run:  uvicorn app.main:app --reload --app-dir backend
 from __future__ import annotations
 
 import json
-import os
 import time
 from functools import lru_cache
-from pathlib import Path
 from typing import Dict, Tuple
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+from .drawings import questions_path, router as drawings_router
 
 from .schema import (
     Answer,
@@ -37,12 +37,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(drawings_router)
 
 
 @lru_cache(maxsize=1)
 def _gold() -> Dict[Tuple[str, str], dict]:
-    p = os.environ.get("LEARGAS_QUESTIONS")
-    if not p or not Path(p).exists():
+    p = questions_path()
+    if p is None:
         return {}
     out = {}
     with open(p, encoding="utf-8") as f:
