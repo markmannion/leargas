@@ -200,9 +200,22 @@ def tool_printed(sheet: Sheet, question: str, kind: dict) -> Optional[SheetResul
         unit = None
         qtype = "text"
     conf = PRINTED_CONF if (score >= 0.66 and r.conf >= 0.9) else 0.75
+    r = _trim_left(r, q)
     return SheetResult(value=v, unit=unit, qtype=qtype, confidence=conf, tool="printed",
                        evidence=_evidence(sheet, [r]),
                        explanation=f'Printed on the sheet: "{r.text}".')
+
+
+def _trim_left(r: Text, q: set) -> Text:
+    """OCR can read two columns as one line. Start the row at the first word the question matched,
+    and shrink the box by the same share of characters (an estimate, good enough for a highlight)."""
+    words = list(re.finditer(r"[A-Za-z0-9]+", r.text))
+    first = next((m.start() for m in words if _stem(m.group(0).lower()) in q), 0)
+    if first <= 0:
+        return r
+    x0, y0, x1, y1 = r.box
+    cut = x0 + (x1 - x0) * first / max(len(r.text), 1)
+    return Text(r.text[first:], (cut, y0, x1, y1), r.conf)
 
 
 def _labels(sheet: Sheet) -> List[Text]:
