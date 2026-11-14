@@ -21,6 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from . import router as qa_router
 from .drawings import questions_path, router as drawings_router
 from .router import _guess_type
+from .voice import router as voice_router
 
 from .schema import (
     Answer,
@@ -41,6 +42,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(drawings_router)
+app.include_router(voice_router)
 
 
 @lru_cache(maxsize=1)
