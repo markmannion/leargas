@@ -17,8 +17,9 @@ const RENDER_NOTE: Record<Drawing['render'], string | null> = {
 
 export default function App() {
   const [drawings, setDrawings] = useState<Drawing[]>([])
-  const [total, setTotal] = useState(0)
+  const total = drawings.length
   const [listError, setListError] = useState<string | null>(null)
+  const [listLoading, setListLoading] = useState(true)
   const [selected, setSelected] = useState<Drawing | null>(null)
   const [engine, setEngine] = useState<Engine>('auto')
   const [health, setHealth] = useState<Health | null>(null)
@@ -61,12 +62,12 @@ export default function App() {
     api
       .drawings()
       .then((r) => {
-        setDrawings(r.drawings)
-        setTotal(r.total)
+        setDrawings((current) => [...r.drawings, ...current.filter((d) => !r.drawings.some((item) => item.path === d.path))])
         const fromHash = decodeURIComponent(location.hash.slice(1))
-        setSelected(r.drawings.find((d) => d.path === fromHash) ?? r.drawings[0] ?? null)
+        setSelected((current) => current ?? r.drawings.find((d) => d.path === fromHash) ?? r.drawings[0] ?? null)
       })
       .catch((e: Error) => setListError(e.message))
+      .finally(() => setListLoading(false))
   }, [])
 
   const select = useCallback((d: Drawing) => {
@@ -82,6 +83,11 @@ export default function App() {
     setHovered(null)
     history.replaceState(null, '', `#${encodeURIComponent(d.path)}`)
   }, [stopSpeech])
+
+  const uploaded = useCallback((drawing: Drawing) => {
+    setDrawings((current) => [drawing, ...current.filter((d) => d.path !== drawing.path)])
+    select(drawing)
+  }, [select])
 
   const changeRegion = useCallback((next: Region | null) => {
     inflight.current?.abort()
@@ -163,7 +169,9 @@ export default function App() {
         total={total}
         selected={selected?.path ?? null}
         error={listError}
+        loading={listLoading}
         onSelect={select}
+        onUploaded={uploaded}
       />
 
       <aside className="inspector glass">

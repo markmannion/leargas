@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react'
 import type { Drawing } from '../types'
+import { PlanUpload } from './PlanUpload'
 
 interface Props {
   drawings: Drawing[]
   total: number
   selected: string | null
   error: string | null
+  loading: boolean
   onSelect: (d: Drawing) => void
+  onUploaded: (d: Drawing) => void
 }
 
 const RENDER_LABEL: Record<Drawing['render'], string> = { image: 'IMG', pdf: 'PDF', dxf: 'DXF' }
@@ -21,7 +24,7 @@ function searchText(text: string) {
   return text.toLowerCase().replace(/([a-z])(\d)/g, '$1 $2').replace(/[^\p{L}\p{N}]+/gu, ' ')
 }
 
-export function DrawingList({ drawings, total, selected, error, onSelect }: Props) {
+export function DrawingList({ drawings, total, selected, error, loading, onSelect, onUploaded }: Props) {
   const [q, setQ] = useState('')
   const [collection, setCollection] = useState('')
   const [format, setFormat] = useState<Drawing['render'] | ''>('')
@@ -68,6 +71,7 @@ export function DrawingList({ drawings, total, selected, error, onSelect }: Prop
           Plans <span className="muted">{total.toLocaleString()}</span>
         </h2>
         <p className="register-help">Find a plan to start exploring.</p>
+        <PlanUpload onUploaded={(drawing) => { clearFilters(); onUploaded(drawing) }} />
         <input
           type="search"
           className="search"
@@ -119,7 +123,7 @@ export function DrawingList({ drawings, total, selected, error, onSelect }: Prop
 
       <div className="register-body">
         {error && <p className="register-msg error">Could not load drawings: {error}</p>}
-        {!error && drawings.length === 0 && <p className="register-msg muted">Loading…</p>}
+        {!error && drawings.length === 0 && <p className="register-msg muted">{loading ? 'Loading…' : 'No plans yet. Upload a plan to get started.'}</p>}
         {!error && drawings.length > 0 && filtered.length === 0 && (
           <div className="register-empty">
             <strong>No matching plans</strong>

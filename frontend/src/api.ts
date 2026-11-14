@@ -42,6 +42,24 @@ export const api = {
       signal,
     }).then((r) => json<Answer>(r)),
 
+  upload: (file: File, onProgress: (percent: number) => void): Promise<Drawing> =>
+    new Promise((resolve, reject) => {
+      const request = new XMLHttpRequest()
+      request.open('POST', `${API_BASE}/drawings/upload?filename=${encodeURIComponent(file.name)}`)
+      request.setRequestHeader('Content-Type', 'application/octet-stream')
+      request.timeout = 120000
+      request.upload.onprogress = (event) => {
+        if (event.lengthComputable) onProgress(Math.round(event.loaded / event.total * 100))
+      }
+      request.onload = () => {
+        json<Drawing>(new Response(request.responseText, { status: request.status, statusText: request.statusText }))
+          .then(resolve, reject)
+      }
+      request.onerror = () => reject(new Error('Could not reach the server. Check your connection and try again.'))
+      request.ontimeout = () => reject(new Error('Upload timed out. Try a smaller file or check the plan library before retrying.'))
+      request.send(file)
+    }),
+
   drawingUrl: (path: string, page = 0) =>
     `${API_BASE}/drawing?path=${encodeURIComponent(path)}&page=${page}`,
 }
