@@ -1,24 +1,24 @@
 {
   "overall": {
     "n": 2512,
-    "accuracy": 0.9307324840764332,
-    "accuracy_strict_1pct": 0.9307324840764332,
-    "coverage": 0.9307324840764332,
+    "accuracy": 0.981687898089172,
+    "accuracy_strict_1pct": 0.981687898089172,
+    "coverage": 0.981687898089172,
     "precision": 1.0,
     "outcomes": {
-      "correct": 2338,
-      "abstain": 174
+      "correct": 2466,
+      "abstain": 46
     }
   },
   "ext/pdf": {
     "n": 2512,
-    "accuracy": 0.9307324840764332,
-    "accuracy_strict_1pct": 0.9307324840764332,
-    "coverage": 0.9307324840764332,
+    "accuracy": 0.981687898089172,
+    "accuracy_strict_1pct": 0.981687898089172,
+    "coverage": 0.981687898089172,
     "precision": 1.0,
     "outcomes": {
-      "correct": 2338,
-      "abstain": 174
+      "correct": 2466,
+      "abstain": 46
     }
   },
   "source/ifc_models": {
@@ -33,35 +33,35 @@
   },
   "source/swiss_dwellings": {
     "n": 1914,
-    "accuracy": 0.9090909090909091,
-    "accuracy_strict_1pct": 0.9090909090909091,
-    "coverage": 0.9090909090909091,
+    "accuracy": 0.9759665621734587,
+    "accuracy_strict_1pct": 0.9759665621734587,
+    "coverage": 0.9759665621734587,
     "precision": 1.0,
     "outcomes": {
-      "correct": 1740,
-      "abstain": 174
+      "correct": 1868,
+      "abstain": 46
     }
   },
   "type/area": {
     "n": 1012,
-    "accuracy": 0.9110671936758893,
-    "accuracy_strict_1pct": 0.9110671936758893,
-    "coverage": 0.9110671936758893,
+    "accuracy": 0.958498023715415,
+    "accuracy_strict_1pct": 0.958498023715415,
+    "coverage": 0.958498023715415,
     "precision": 1.0,
     "outcomes": {
-      "correct": 922,
-      "abstain": 90
+      "correct": 970,
+      "abstain": 42
     }
   },
   "type/count": {
     "n": 1456,
-    "accuracy": 0.9423076923076923,
-    "accuracy_strict_1pct": 0.9423076923076923,
-    "coverage": 0.9423076923076923,
+    "accuracy": 0.9972527472527473,
+    "accuracy_strict_1pct": 0.9972527472527473,
+    "coverage": 0.9972527472527473,
     "precision": 1.0,
     "outcomes": {
-      "correct": 1372,
-      "abstain": 84
+      "correct": 1452,
+      "abstain": 4
     }
   },
   "type/length": {
@@ -103,9 +103,9 @@
     "sent": 2646,
     "ok": 2646,
     "errors": 0,
-    "wall_s": 132.32397683302406,
-    "latency_p50_s": 0.021991583053022623,
-    "latency_p95_s": 1.9516869579674676,
+    "wall_s": 149.11643983295653,
+    "latency_p50_s": 0.026391167077235878,
+    "latency_p95_s": 1.3570060420315713,
     "api": "http://127.0.0.1:8000",
     "engine": "auto",
     "split": "data/runs/heldout_paths.txt",
