@@ -14,7 +14,6 @@ export interface LogEntry {
   at: Date
 }
 
-export type ReadAloud = 'off' | 'spoken' | 'always'
 export type GemmaState = 'available' | 'unavailable' | 'unconfigured' | 'checking' | 'disabled' | undefined
 
 export function useSession() {
@@ -36,17 +35,6 @@ export function useSession() {
   const [log, setLog] = useState<LogEntry[]>([])
   const [activeEntry, setActiveEntry] = useState<number | null>(null)
   const [voice, setVoice] = useState(false)
-  // When answers are read aloud: never, only after a spoken question, or after every question.
-  const [readAloud, setReadAloudState] = useState<ReadAloud>(() => {
-    try {
-      const v = localStorage.getItem('leargas.readAloud')
-      return v === 'off' || v === 'always' ? v : 'spoken'
-    } catch { return 'spoken' }
-  })
-  const setReadAloud = useCallback((v: ReadAloud) => {
-    setReadAloudState(v)
-    try { localStorage.setItem('leargas.readAloud', v) } catch { /* private window */ }
-  }, [])
   const inflight = useRef<AbortController | null>(null)
   const nextId = useRef(1)
   const speaker = useSpeaker()
@@ -126,9 +114,9 @@ export function useSession() {
   }, [cancel, resetAnswer])
 
   const ask = useCallback(
-    async (question: string, opts: { spoken?: boolean; floorAreas?: boolean } = {}) => {
+    async (question: string, opts: { floorAreas?: boolean } = {}) => {
       if (!selected) return
-      const { spoken = false, floorAreas = false } = opts
+      const { floorAreas = false } = opts
       inflight.current?.abort()
       stopSpeech()
       const ctrl = new AbortController()
@@ -151,7 +139,7 @@ export function useSession() {
         setAnswer(a)
         setActiveEntry(id)
         setLog((l) => [{ id, drawing: selected, region, areaMode, answer: a, at: new Date() }, ...l].slice(0, 60))
-        if (voice && (readAloud === 'always' || (spoken && readAloud === 'spoken'))) void speak(speakableAnswer(a))
+        if (voice) void speak(speakableAnswer(a)) // every answer is read aloud
       } catch (e) {
         if (!ctrl.signal.aborted && (e as Error).name !== 'AbortError') {
           setAnswer(null)
@@ -165,7 +153,7 @@ export function useSession() {
         }
       }
     },
-    [selected, engine, region, areaMode, stopSpeech, speak, voice, readAloud],
+    [selected, engine, region, areaMode, stopSpeech, speak, voice],
   )
 
   /** Bring back an earlier answer, with its drawing and region. */
@@ -206,7 +194,7 @@ export function useSession() {
     region, changeRegion, selectingRegion, setSelectingRegion,
     areaMode, changeAreaMode,
     log, activeEntry, reopen,
-    voice, speaker, readAloud, setReadAloud,
+    voice, speaker,
   }
 }
 

@@ -79,7 +79,7 @@ export default function ClarApp() {
       <aside className="cs" aria-label="Title strip">
         <header className="cs-head">
           <h1 className="cs-mark">Léargas</h1>
-          <Connection s={s} />
+          <ModelStatus s={s} />
         </header>
 
         <section className="cs-cell cs-drawing">
@@ -129,16 +129,63 @@ export default function ClarApp() {
 
 const today = new Date().toLocaleDateString('en-IE', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '.')
 
-function Connection({ s }: { s: Session }) {
-  const text = {
-    offline: 'Backend offline',
-    connecting: 'Connecting',
-    mock: 'Mock API',
-    live: 'Live',
-    degraded: s.gemmaState === 'checking' ? 'Checking Gemma' : s.gemmaState === 'unconfigured' ? 'Geometry only' : 'Gemma offline',
-  }[s.connection]
+// Speech is louder than this on the meter's 0-1 scale; quieter is room noise.
+const HEARING = 0.2
+
+/** Live bars that move with the microphone, so you can see it is hearing you. */
+function VoiceMeter({ level }: { level: number }) {
+  const hearing = level >= HEARING
+  return (
+    <span className={`vm${hearing ? ' is-hearing' : ''}`} role="status">
+      <span className="vm-bars" aria-hidden="true">
+        {[0.55, 0.85, 1, 0.85, 0.55].map((w, i) => (
+          <i key={i} style={{ transform: `scaleY(${Math.max(0.18, Math.min(1, level * 1.6 * w))})` }} />
+        ))}
+      </span>
+      {hearing ? 'Hearing you' : 'Listening…'} · Stop when done
+    </span>
+  )
+}
+
+type Light = 'ready' | 'down' | 'checking' | 'off' | 'mock'
+
+const LIGHT_WORD: Record<Light, string> = { ready: 'Ready', down: 'Offline', checking: 'Checking', off: 'Not set up', mock: 'Mock' }
+
+function gemmaLight(st: string | undefined, backend: Session['connection']): Light {
+  if (backend === 'offline') return 'down'
+  if (backend === 'connecting') return 'checking'
+  if (backend === 'mock') return 'mock'
+  if (st === 'available') return 'ready'
+  if (st === 'checking') return 'checking'
+  if (st === 'unconfigured' || st === 'disabled') return 'off'
+  return 'down'
+}
+
+/** One status light per model, in its cross-check colour. Models the current setting won't use are dimmed. */
+function ModelStatus({ s }: { s: Session }) {
+  const models = s.health?.gemma_status?.models ?? {}
+  const geo: Light = s.connection === 'offline' ? 'down' : s.connection === 'connecting' ? 'checking' : s.connection === 'mock' ? 'mock' : 'ready'
+  const rows: { id: string; lane: 'measure' | 'model'; name: string; light: Light; used: boolean; about: string }[] = [
+    { id: 'geo', lane: 'measure', name: 'Geometry', light: geo, used: s.engine !== 'gemma_ft' && s.engine !== 'gemma_base',
+      about: 'Measures DXF and IFC files, and reads the text and lines on large sheets.' },
+    { id: 'ft', lane: 'model', name: 'Gemma FT', light: gemmaLight(models['gemma-ft'] ?? s.health?.gemma_status?.status, s.connection),
+      used: s.engine === 'auto' || s.engine === 'gemma_ft', about: 'Fine-tuned Gemma, which reads the drawing image.' },
+    { id: 'base', lane: 'model', name: 'Gemma base', light: gemmaLight(models['gemma-base'] ?? s.health?.gemma_status?.status, s.connection),
+      used: s.engine === 'gemma_base', about: 'Base Gemma, before fine-tuning.' },
+  ]
   const title = s.health ? `${s.health.gold_questions_loaded.toLocaleString()} reference questions loaded` : undefined
-  return <p className={`cs-conn is-${s.connection}`} role="status" title={title}>{text}</p>
+  return (
+    <ul className="ms" role="status" aria-label="Model status" title={title}>
+      {rows.map((r) => (
+        <li key={r.id} className={`ms-row is-${r.lane} is-${r.light}${r.used ? ' is-used' : ''}`}
+          title={`${r.about} ${LIGHT_WORD[r.light]}.${r.used ? '' : ' Not used by the current setting.'}`}>
+          <i className="ms-light" aria-hidden="true" />
+          <span className="ms-name">{r.name}</span>
+          <span className="ms-word">{LIGHT_WORD[r.light]}</span>
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 function DrawingTitle({ d }: { d: Drawing }) {
@@ -160,13 +207,13 @@ function AskCell({ s }: { s: Session }) {
   const box = useRef<HTMLTextAreaElement>(null)
   const d = s.selected
   const blocked = !d || s.busy || s.selectingRegion
-  const submit = (q: string, spoken = false) => {
+  const submit = (q: string) => {
     const t = q.trim()
     if (!t || blocked) return
     setText(t)
-    void s.ask(t, { spoken })
+    void s.ask(t)
   }
-  const mic = useVoiceInput((t) => submit(t, true))
+  const mic = useVoiceInput((t) => submit(t))
   const listening = mic.state === 'recording'
 
   // "/" puts the cursor in the question box, as in a search field.
@@ -195,7 +242,8 @@ function AskCell({ s }: { s: Session }) {
           <label htmlFor="cl-q" className="cs-label">Ask a question</label>
           {d && <span className="cs-q-key"><kbd>/</kbd> to type</span>}
         </div>
-        <div className={`cs-q${listening ? ' is-listening' : ''}${!d ? ' is-off' : ''}`} onClick={() => box.current?.focus()}>
+        <div className={`cs-q${listening ? ' is-listening' : ''}${listening && mic.level >= HEARING ? ' is-hearing' : ''}${!d ? ' is-off' : ''}`}
+          style={listening ? ({ '--lvl': mic.level } as React.CSSProperties) : undefined} onClick={() => box.current?.focus()}>
           <textarea id="cl-q" ref={box} rows={2} value={text} disabled={!d}
             placeholder={!d ? 'Open a drawing first'
               : listening ? 'Listening… speak your question'
@@ -214,20 +262,12 @@ function AskCell({ s }: { s: Session }) {
             )}
             <span className="cs-q-hint">
               {mic.error ? <span className="cs-warn">{mic.error}</span>
-                : listening ? 'Press Stop when you’re done'
+                : listening ? <VoiceMeter level={mic.level} />
                   : 'Any language · Enter to ask'}
             </span>
             <button type="submit" className="cs-btn cs-go" disabled={blocked || !text.trim()}>{s.busy ? 'Asking…' : 'Ask'}</button>
           </div>
         </div>
-        {s.voice && (
-          <div className="cs-aloud" role="group" aria-label="Read answers aloud">
-            <span className="cs-label">Read answers aloud</span>
-            {([['off', 'Off'], ['spoken', 'When I speak'], ['always', 'Always']] as const).map(([v, label]) => (
-              <button key={v} type="button" aria-pressed={s.readAloud === v} onClick={() => s.setReadAloud(v)}>{label}</button>
-            ))}
-          </div>
-        )}
       </form>
 
       <div className="cs-takeoff">
@@ -246,12 +286,6 @@ function AskCell({ s }: { s: Session }) {
           <label><input type="radio" name="cl-mode" checked={s.areaMode === 'whole_rooms'} onChange={() => s.changeAreaMode('whole_rooms')} /> Whole rooms</label>
           <label><input type="radio" name="cl-mode" checked={s.areaMode === 'intersection'} onChange={() => s.changeAreaMode('intersection')} /> Exact cut</label>
         </fieldset>
-      )}
-      {s.connection === 'degraded' && (
-        <p className="cs-hint cs-warn" role="status">
-          {s.gemmaState === 'checking' ? 'Checking whether Gemma is up.' : s.gemmaState === 'unconfigured' ? 'Gemma is not connected.' : 'Gemma is offline.'}
-          {' '}Geometry and the sheet reader still answer.
-        </p>
       )}
     </section>
   )

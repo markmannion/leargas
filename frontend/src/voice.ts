@@ -82,12 +82,48 @@ export type RecState = 'idle' | 'recording' | 'transcribing'
 export function useVoiceInput(onText: (text: string) => void) {
   const [state, setState] = useState<RecState>('idle')
   const [error, setError] = useState<string | null>(null)
+  // Live input level while recording, 0-1 in steps of 0.1, so the UI can show it is being talked to.
+  const [level, setLevel] = useState(0)
   const rec = useRef<MediaRecorder | null>(null)
+  const meter = useRef<{ ctx: AudioContext; raf: number } | null>(null)
   const cb = useRef(onText)
   cb.current = onText
 
+  const stopMeter = useCallback(() => {
+    const m = meter.current
+    if (!m) return
+    cancelAnimationFrame(m.raf)
+    void m.ctx.close()
+    meter.current = null
+    setLevel(0)
+  }, [])
+
+  const startMeter = useCallback((stream: MediaStream) => {
+    try {
+      const ctx = new AudioContext()
+      void ctx.resume() // created after the permission prompt, so it can start suspended
+      const an = ctx.createAnalyser()
+      an.fftSize = 512
+      ctx.createMediaStreamSource(stream).connect(an)
+      const buf = new Uint8Array(an.fftSize)
+      let last = -1
+      const tick = () => {
+        an.getByteTimeDomainData(buf)
+        let sum = 0
+        for (const b of buf) sum += ((b - 128) / 128) ** 2
+        const v = Math.min(1, Math.round(Math.sqrt(sum / buf.length) * 60) / 10)
+        if (v !== last) setLevel((last = v))
+        if (meter.current) meter.current.raf = requestAnimationFrame(tick)
+      }
+      meter.current = { ctx, raf: requestAnimationFrame(tick) }
+    } catch {
+      // No Web Audio: recording still works, there is just no meter.
+    }
+  }, [])
+
   useEffect(
     () => () => {
+      stopMeter()
       const r = rec.current
       if (r && r.state !== 'inactive') {
         r.onstop = null
@@ -95,7 +131,7 @@ export function useVoiceInput(onText: (text: string) => void) {
         r.stream.getTracks().forEach((t) => t.stop())
       }
     },
-    [],
+    [stopMeter],
   )
 
   const start = useCallback(async () => {
@@ -111,6 +147,7 @@ export function useVoiceInput(onText: (text: string) => void) {
     const chunks: Blob[] = []
     r.ondataavailable = (e) => e.data.size && chunks.push(e.data)
     r.onstop = async () => {
+      stopMeter()
       stream.getTracks().forEach((t) => t.stop())
       rec.current = null
       const blob = new Blob(chunks, { type: r.mimeType || 'audio/webm' })
@@ -128,8 +165,9 @@ export function useVoiceInput(onText: (text: string) => void) {
     }
     rec.current = r
     r.start()
+    startMeter(stream)
     setState('recording')
-  }, [])
+  }, [startMeter, stopMeter])
 
   const stop = useCallback(() => rec.current?.stop(), [])
 
@@ -138,7 +176,7 @@ export function useVoiceInput(onText: (text: string) => void) {
     else if (state === 'idle') void start()
   }, [state, start, stop])
 
-  return { state, error, toggle }
+  return { state, error, toggle, level }
 }
 
 /** Plays answers through ElevenLabs TTS; a new call cuts off the previous one. */
