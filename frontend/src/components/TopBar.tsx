@@ -37,7 +37,6 @@ export function TopBar({ engine, onEngine, health, healthError, title, subtitle 
         <img src="/hackjunction.png" alt="Junction" className="brand-logo" width={28} height={28} />
         <div className="brand-text">
           <span className="brand-name">Léargas</span>
-          <span className="brand-product">BlueprintTrace</span>
         </div>
       </div>
 

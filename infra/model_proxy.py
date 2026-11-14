@@ -28,7 +28,7 @@ DEFAULT_ROUTES = (
 API_KEY = os.environ.get("MODEL_API_KEY", "")
 ROUTES = dict(kv.split("=", 1) for kv in os.environ.get("ROUTES", DEFAULT_ROUTES).split(",") if kv)
 
-app = FastAPI(title="BlueprintTrace model proxy")
+app = FastAPI(title="Léargas model proxy")
 client = httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=5.0))
 
 

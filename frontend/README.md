@@ -1,6 +1,6 @@
 # frontend
 
-BlueprintTrace UI: pick a drawing, ask a question in any language, get the answer with its evidence marked on the sheet.
+Léargas UI: pick a drawing, ask a question in any language, get the answer with its evidence marked on the sheet.
 
 ```bash
 npm install

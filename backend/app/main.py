@@ -42,7 +42,7 @@ from .schema import (
     Status,
 )
 
-app = FastAPI(title="leargas / BlueprintTrace", version="0.1.0")
+app = FastAPI(title="Léargas", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

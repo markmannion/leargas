@@ -175,8 +175,8 @@ data/
 
 # Internal docs and planning notes (not committed)
 docs/
-blueprint-trace-build-plan.md
-blueprint-trace-plan.md
+*-build-plan.md
+*-plan.md
 mark-tasks.md
 who-does-what.md
 infra/verda.local.md

@@ -1,16 +1,16 @@
-# BlueprintTrace
+# Léargas
 
-BlueprintTrace answers questions about construction drawings.
+Léargas answers questions about construction drawings. Léargas is the Irish word for insight.
 It shows the evidence for each answer on the drawing.
 If it cannot find the evidence, it tells you. It does not guess.
 
-We made BlueprintTrace for the Stoa track at Junction 2026.
+We made Léargas for the Stoa track at Junction 2026.
 
 ## What it does
 
 1. You select a drawing, or you upload your own drawing.
 2. You ask a question. You can type it or say it.
-3. BlueprintTrace gives an answer, a status and the evidence.
+3. Léargas gives an answer, a status and the evidence.
 4. The evidence shows on the drawing as boxes, outlines or points.
 
 Example questions:
@@ -30,13 +30,13 @@ Each answer has one of four statuses.
 | Verified | One reliable source gave the answer, or two sources gave the same answer. |
 | Partial | There is an answer, but it is an estimate. Check the evidence. |
 | Disagreement | Two sources gave different answers. Check the drawing. |
-| Cannot verify | No source is sure. BlueprintTrace gives no answer. |
+| Cannot verify | No source is sure. Léargas gives no answer. |
 
 ## Features
 
 ### Answers from CAD and BIM files
 
-If a drawing has a DXF file or an IFC model, BlueprintTrace reads the geometry from that file.
+If a drawing has a DXF file or an IFC model, Léargas reads the geometry from that file.
 It counts items and measures areas from the real lines and shapes.
 These answers are the most reliable.
 
@@ -81,7 +81,7 @@ A language model reads questions that do not match a known pattern.
 ## Limits
 
 - The sheet reader uses text recognition (OCR). It can miss text or read it incorrectly.
-- Room areas need closed walls. If a room is open to a corridor, the result can include the corridor. BlueprintTrace then tells you that the rooms can be merged.
+- Room areas need closed walls. If a room is open to a corridor, the result can include the corridor. Léargas then tells you that the rooms can be merged.
 - Door and window counts on large sheets are estimates. Double doors count as one opening.
 - Slab areas can include only one panel of a slab. Always check the highlighted regions.
 - The vision model is weak on door and window counts in small images. These answers often get "Cannot verify".
