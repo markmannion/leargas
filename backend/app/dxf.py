@@ -117,7 +117,7 @@ class Drawing:
         if query.unit_id and any(w.startswith("unit labels:") for w in self.warnings):
             raise CannotVerify("Residential unit labels are ambiguous.")
         if query.unit_id and any(i.kind == "unit" and i.unit_id is None and i.label is None
-                                 for i in self.items):
+                                 and _holds_numbered_room(i, rooms) for i in self.items):
             raise CannotVerify("Unlabelled unit fragments could belong to the requested apartment.")
         if query.kind in {"fixture", "toilet", "washbasin", "bathtub", "shower",
                           "washing_machine", "kitchen", "stairs"} and any(
@@ -312,6 +312,16 @@ def parse_dxf(path: str | Path) -> Drawing:
                 raise CannotVerify(f"Unsupported {layer} symbol: {entity.dxf.handle}.")
     _fixtures(by_layer["FIXTURE"], drawing)
     return drawing
+
+
+def _holds_numbered_room(fragment: Item, rooms: list[Item]) -> bool:
+    """Whether a numbered room lies (more than 10%) inside an unlabelled unit outline.
+
+    Fragments holding only shafts or unnumbered voids can't change an apartment's room sum.
+    """
+    return any(r.room_id and r.polygon.intersects(fragment.polygon)
+               and r.polygon.intersection(fragment.polygon).area > 0.1 * r.polygon.area
+               for r in rooms)
 
 
 ENCLOSED = 0.97  # share of perimeter that must border other rooms (within a wall's width)

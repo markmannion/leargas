@@ -77,6 +77,17 @@ def test_unlabelled_unit_islands_and_commercial_spaces_are_not_apartments(cad):
     drawing = save_parse(cad)
     assert drawing.query(Query("count", "unit")).value == 1
     assert drawing.query(Query("count", "room", label="Zimmer")).value == 1
+    # The fragment holds no numbered room, so apartment A's sum is unaffected.
+    assert drawing.query(Query("area", "room", unit_id="A", indoor_only=True)).value == 12.34
+
+
+def test_unit_fragment_holding_a_numbered_room_blocks_apartment_area(cad):
+    _, space, _ = cad
+    rectangle(space, "UNIT_OUTLINE", 20, 20, 3, 3)
+    rectangle(space, "ROOM_OUTLINE", 20.5, 20.5, 2, 2)
+    for y, text in [(22, "Zimmer"), (21.5, "1.05"), (21, "4.00 m²")]:
+        space.add_text(text, dxfattribs={"layer": "ROOM_TEXT", "insert": (21.5, y)})
+    drawing = save_parse(cad)
     with pytest.raises(CannotVerify, match="fragments"):
         drawing.query(Query("area", "room", unit_id="A", indoor_only=True))
 
@@ -222,3 +233,27 @@ def test_batch_reports_broken_files_and_checks_inventory(cad, capsys):
     assert result["parsed"] == result["supported"] == 1
     assert len(result["errors"]) == 1
     assert main(["parse", str(root / "broken.dxf")]) == 1
+
+
+def test_unlabelled_numbered_room_on_the_facade_stays_unclassified(cad):
+    _, space, _ = cad
+    rectangle(space, "ROOM_OUTLINE", 8, 0, 1.5, 4)  # borders only the balcony, open on three sides
+    space.add_text("1.03", dxfattribs={"layer": "ROOM_TEXT", "insert": (8.7, 2)})
+    drawing = save_parse(cad)
+    room = next(i for i in drawing.items if i.room_id == "1.03")
+    assert room.indoor is None
+    with pytest.raises(CannotVerify, match="Indoor/outdoor"):
+        drawing.query(Query("area", "room", indoor_only=True))
+
+
+def test_enclosed_unlabelled_numbered_room_is_indoor(cad):
+    _, space, _ = cad
+    # a store right of the balcony, with rooms 20 cm away on its other three sides
+    rectangle(space, "ROOM_OUTLINE", 8.2, .5, 1, 3)
+    space.add_text("1.03", dxfattribs={"layer": "ROOM_TEXT", "insert": (8.7, 2)})
+    rectangle(space, "ROOM_OUTLINE", 9.4, -1, 3, 6)
+    rectangle(space, "ROOM_OUTLINE", 8, 3.7, 1.4, 1)
+    rectangle(space, "ROOM_OUTLINE", 8, -.7, 1.4, 1)
+    drawing = save_parse(cad)
+    room = next(i for i in drawing.items if i.room_id == "1.03")
+    assert room.indoor is True
