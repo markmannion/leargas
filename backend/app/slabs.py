@@ -30,13 +30,26 @@ def group_slabs(rows: list[SlabArea]) -> list[SlabGroup]:
         thickness_mm=thickness, reinforcement=items[0].reinforcement,
         specification_status=items[0].specification_status,
         value=fsum(i.value for i in items), slab_ids=[i.id for i in items],
+        slab_types=_types(items),
     ) for (thickness, _), items in sorted(buckets.items(), key=lambda pair: (
         pair[0][0] is None, pair[0][0] or 0, pair[0][1],
     ))]
 
 
+def _types(items: list[SlabArea]) -> list[str]:
+    area = defaultdict(float)
+    for i in items:
+        if i.slab_type:
+            area[i.slab_type] += i.value
+    return [t for t, _ in sorted(area.items(), key=lambda pair: -pair[1])]
+
+
 def slab_explanation(rows: list[SlabArea]) -> str:
     unknown = [r for r in rows if r.specification_status == "unknown"]
-    note = (f" {len(unknown)} slab/zone(s), {fsum(r.value for r in unknown):g} m², have an unknown specification; "
-            "their measurable area is retained." if unknown else "")
-    return f"Slab area grouped by thickness and reinforcement over {len(rows)} slab/zone(s).{note}"
+    no_bars = [r for r in unknown if not r.reinforcement]
+    note = ""
+    if unknown:
+        note = (f" {len(unknown)} slab/zone(s), {fsum(r.value for r in unknown):.2f} m², have an incomplete specification"
+                + (f" ({len(no_bars)} with no bar/reinforcement data in the source)" if no_bars else "")
+                + "; their measured area is kept.")
+    return f"Slab area by type, grouped by thickness and bars, over {len(rows)} slab/zone(s).{note}"

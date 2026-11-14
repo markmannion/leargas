@@ -6,25 +6,26 @@ export function SlabBreakdown({ answer, onHover }: { answer: Answer; onHover: (i
   if (!rows.length) return null
   return (
     <div className="block slab-breakdown">
-      <h3 className="block-title">Slab area by thickness and reinforcement</h3>
+      <h3 className="block-title">Slab area by type (thickness and bars)</h3>
       <div className="slab-table-scroll">
         <table className="room-areas slab-areas">
-          <thead><tr><th scope="col">Thickness</th><th scope="col">Reinforcement</th><th scope="col">Area</th></tr></thead>
+          <thead><tr><th scope="col">Thickness</th><th scope="col">Bars</th><th scope="col">Slab types</th><th scope="col">Area</th></tr></thead>
           <tbody>{(answer.slab_groups ?? []).map((group, i) => (
             <tr key={i}>
               <th scope="row">{group.thickness_mm == null ? 'Unknown thickness' : `${group.thickness_mm} mm`}</th>
-              <td>{group.reinforcement ?? 'Unknown specification'}
-                {group.specification_status === 'unknown' && group.reinforcement && <small>Unknown specification</small>}
+              <td>{group.reinforcement ?? <span className="muted">Not in source</span>}
+                {group.specification_status === 'unknown' && group.reinforcement && <small>Thickness unknown</small>}
               </td>
+              <td>{group.slab_types?.length ? group.slab_types.join(', ') : <span className="muted">Untyped</span>}</td>
               <td className="mono num" title={`${group.value} m²`}>{group.value.toFixed(2)} m²</td>
             </tr>
           ))}</tbody>
-          <tfoot><tr><th scope="row" colSpan={2}>Total slab area</th>
+          <tfoot><tr><th scope="row" colSpan={3}>Total slab area</th>
             <td className="mono num">{typeof answer.answer === 'number' ? `${answer.answer.toFixed(2)} m²` : '—'}</td>
           </tr></tfoot>
         </table>
       </div>
-      <p className="scope-help">Unknown specifications retain their measured area. Totals use unrounded areas.</p>
+      <p className="scope-help">Bars come only from reinforcement exported in the model or a linked schedule; they are never guessed from type names. Slabs without a specification keep their measured area. Totals use unrounded areas.</p>
       <details>
         <summary>Slabs and specification sources ({rows.length})</summary>
         <ul className="slab-records">{rows.map((row) => (
@@ -37,7 +38,7 @@ export function SlabBreakdown({ answer, onHover }: { answer: Answer; onHover: (i
               {row.mark ?? 'Unmarked slab zone'} · {row.value.toFixed(2)} m²
             </button>
             <p>{row.slab_type ?? 'Unknown type'}{row.level ? ` · ${row.level}` : ''} · {row.thickness_mm == null ? 'Unknown thickness' : `${row.thickness_mm} mm`}
-              {' · '}{row.reinforcement ?? 'Unknown specification'} · {row.method === 'quantity' ? 'Model quantity' : 'CAD geometry'}</p>
+              {' · '}{row.reinforcement ?? 'Bars not in source'} · {row.method === 'quantity' ? 'Model quantity' : 'CAD geometry'}</p>
             {row.warnings.map((warning, i) => <p className="scope-help" key={i}>{warning}</p>)}
             <ul>{row.references.map((ref, i) => (
               <li key={i}>{/\.(pdf|dxf|png|jpe?g)$/i.test(ref.path)
