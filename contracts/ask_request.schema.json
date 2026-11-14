@@ -1,0 +1,63 @@
+{
+  "$defs": {
+    "QuestionType": {
+      "enum": [
+        "count",
+        "area",
+        "length",
+        "volume",
+        "text",
+        "other"
+      ],
+      "title": "QuestionType",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "path": {
+      "description": "Dataset path, e.g. \"data/swiss_dwellings/site3387_bldg5238_floor23498.pdf\"",
+      "title": "Path",
+      "type": "string"
+    },
+    "question": {
+      "title": "Question",
+      "type": "string"
+    },
+    "type": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/QuestionType"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Hint if known; otherwise inferred"
+    },
+    "engine": {
+      "anyOf": [
+        {
+          "enum": [
+            "auto",
+            "geometry",
+            "gemma_ft",
+            "gemma_base"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": "auto",
+      "title": "Engine"
+    }
+  },
+  "required": [
+    "path",
+    "question"
+  ],
+  "title": "AskRequest",
+  "type": "object"
+}

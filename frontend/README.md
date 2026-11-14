@@ -1,25 +1,25 @@
-# BlueprintTrace frontend (M7 + M11)
+# frontend
 
-React 18, Vite 5 and TypeScript. No UI library.
+BlueprintTrace UI: pick a drawing, ask a question in any language, get the answer with its evidence marked on the sheet.
 
 ```bash
-cd frontend
 npm install
-npm run dev          # http://localhost:5173
+npm run dev          # http://localhost:5173, proxies /api → http://127.0.0.1:8000
 ```
 
-- **Mock mode** (default, `VITE_API_BASE` empty in the repo-root `.env`): `/ask` answers come from `src/mock.ts`, which follows C2 and covers points, bboxes, polygons, working, cross-check and `cannot_verify`. Drawings are served straight from `datasets/junction-dataset` by a Vite dev middleware. Swiss PDFs show their PNG twin and `ifc_models` PDFs their SVG twin.
-- **Real mode**: set `VITE_API_BASE=http://<harry-host>:8000` in `../.env` and restart `npm run dev`. The frontend then calls `POST /ask`, `GET /drawing/{path}/image` and `POST /feedback`. The exact shapes are listed in `model/README.md`.
+Run the backend alongside it (from the repo root):
 
-## What's there
-- Drawing viewer: drag to pan, wheel or +/− to zoom, Fit. Markers stay the same size on screen at any zoom.
-- Evidence overlay for `polygon`, `bbox` and `point`, with a numbered marker (1…n) on every item. Hovering a marker or a list row highlights both.
-- Answer card: the figure, source, confidence, how, working, cross-check, time and cost, and the dataset answer when the question comes from the demo or judge sets.
-- `cannot_verify`: an amber card with the reason, and no number.
-- Click-to-correct (count answers): click a marker to reject it, or click empty paper to add a missed item. The figure becomes "12 → 11" in redline, and each change is sent to `POST /feedback` (mock: `localStorage["bt.corrections"]` plus the console).
-- Model toggle (Auto / Base Gemma / Fine-tuned Gemma): re-asks the same question with `model` set. This is demo beat 3.
-- Picker over the demo script beats, the demo set by source and the judge set, plus "Upload your own drawing" (multipart to `/ask`).
+```bash
+.venv/bin/uvicorn app.main:app --app-dir backend --port 8000 --reload
+```
 
-## Demo links
-`?q=demo:demo_01` (beat 1), `demo:demo_02` (beat 2), `demo:demo_11` (beat 3, Finnish; add `&model=gemma-base` to show the base model), `demo:demo_12` (beat 4, toilets), `demo:demo_08` (beat 5, A-801), `demo:demo_u2` (beat 7, abstain), `judge:judge_u01` (unlabelled Helsinki drawing).
-Add `&theme=light` to pin light mode on a projector.
+Point the proxy at another backend with `LEARGAS_API=http://host:port npm run dev`, or build against a deployed API with `VITE_API_BASE=https://host npm run build`.
+
+## What it talks to
+
+- `GET /drawings`: drawing register (drawings with questions and something renderable).
+- `GET /drawing?path=…`: the sheet image. Falls back to an SVG render of the DXF twin when the PNG/PDF is not available locally; the status bar says "Rendered from DXF twin" when that happens.
+- `POST /ask` `{path, question, type?, engine}`: returns an `Answer` (`src/types.ts` mirrors `backend/app/schema.py`). The top-bar engine toggle sets `engine`.
+- `GET /health`: `mode: "mock"` shows the amber *Mock API* badge. Polled every 15 s.
+
+Evidence shapes (`point`, `bbox`, `polygon`) are normalized 0–1 on the rendered sheet and drawn in `src/components/SheetViewer.tsx`, coloured by source: blue for geometry, orange for Gemma, violet for the mock.

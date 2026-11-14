@@ -163,6 +163,11 @@ junction-dataset-preview/
 # Python
 __pycache__/
 *.pyc
+.venv/
+.pytest_cache/
+
+# Generated from the dataset (build with: python -m app.query.build_templates)
+backend/data/
 
 # Dataset-derived files (Junction-only licence; the repo is public)
 data/
