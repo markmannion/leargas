@@ -165,14 +165,21 @@ def _catalogue() -> List[dict]:
             )
     out = []
     for path, qs in sorted(by_path.items()):
+        p = _resolve(path)
         kind = _renderable(path)
         if kind is None:
-            continue
+            # An IFC model has no sheet, but the IFC engine still answers its questions.
+            if p.suffix.lower() != ".ifc" or not p.exists():
+                continue
+            kind = "none"
+        # The files that share this drawing's name, so the UI can show its DXF / IFC twins.
+        files = sorted(s.lstrip(".") for s in (".pdf", ".png", ".dxf", ".ifc") if p.with_suffix(s).exists())
         out.append({
             "path": path,
             "collection": path.split("/")[1] if path.count("/") >= 2 else "",
             "name": Path(path).stem,
             "render": kind,
+            "files": files,
             "questions": qs,
         })
     return out

@@ -125,6 +125,44 @@ All commands start from the repository root.
    If port 8000 is in use (for example by an SSH tunnel to the model server), start the backend on port 8100.
    Then set `LEARGAS_API=http://127.0.0.1:8100` before you start the frontend.
 
+## How to deploy it
+
+The frontend runs on Vercel. The backend runs on the Verda GPU box, next to the model server.
+Caddy gives the backend an https address. The address uses the box IP, for example `1-2-3-4.sslip.io` for the IP 1.2.3.4.
+
+1. On the box, run the backend script. It installs the backend, downloads the dataset and starts the services.
+   The services start again after a crash or a reboot. Ports 80 and 443 must be open.
+
+   ```bash
+   ssh <box> "LEARGAS_DOMAIN=<box-ip-with-dashes>.sslip.io bash -s" < infra/serve_backend.sh
+   ```
+
+2. On Vercel, import this repository. Set the root directory to `frontend`.
+   Add the environment variable `VITE_API_BASE=https://<box-ip-with-dashes>.sslip.io`, then deploy.
+
+To update the backend, run the script again. The address does not change.
+
+### Other option: Hugging Face Docker Space (paid plan)
+
+The Space downloads the dataset from the private dataset at startup.
+
+1. On Hugging Face, create a new Space with the Docker SDK (blank template). The CPU upgrade makes OCR faster.
+   Optional: add persistent storage, so the Space does not download the dataset again after each restart.
+2. In the Space settings, add these secrets:
+   - `HF_TOKEN`: a read token from a member of the `leargas` organisation.
+   - Optional: `MODEL_BASE_URL` and `MODEL_API_KEY` for the vision model, `ELEVENLABS_API_KEY` for voice.
+3. Push the backend code to the Space (log in first with `hf auth login`):
+
+   ```bash
+   deploy/push_space.sh <owner>/<space-name>
+   ```
+
+4. Wait until the Space shows "Running". Check `https://<owner>-<space-name>.hf.space/health`.
+5. On Vercel, import this repository. Set the root directory to `frontend`.
+   Add the environment variable `VITE_API_BASE=https://<owner>-<space-name>.hf.space`, then deploy.
+
+Users can browse the dataset drawings and upload their own files in the app. The dataset files stay private.
+
 ## Where the code is
 
 | Folder | What it contains |
