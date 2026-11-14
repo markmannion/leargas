@@ -49,6 +49,7 @@ class Source(str, Enum):
     geometry_ifc = "geometry_ifc"
     gemma_ft = "gemma_ft"
     gemma_base = "gemma_base"
+    sheet_reader = "sheet_reader"  # text + lines read off a large sheet (app.sheet), no CAD twin needed
     mock = "mock"
 
 
@@ -105,7 +106,7 @@ class AskRequest(BaseModel):
     path: str = Field(description='Dataset path, e.g. "data/swiss_dwellings/site3387_bldg5238_floor23498.pdf"')
     question: str
     type: Optional[QuestionType] = Field(None, description="Hint if known; otherwise inferred")
-    engine: Optional[Literal["auto", "geometry", "gemma_ft", "gemma_base"]] = "auto"
+    engine: Optional[Literal["auto", "geometry", "gemma_ft", "gemma_base", "sheet"]] = "auto"
     region: Optional[Region] = None
 
 

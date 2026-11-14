@@ -29,6 +29,7 @@ interface View {
 export function sourceClass(s?: Source | null): string {
   if (s === 'geometry_dxf' || s === 'geometry_ifc') return 'src-geometry'
   if (s === 'gemma_ft' || s === 'gemma_base') return 'src-model'
+  if (s === 'sheet_reader') return 'src-sheet'
   return 'src-mock'
 }
 

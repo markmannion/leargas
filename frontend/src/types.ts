@@ -3,8 +3,8 @@
 export type QuestionType = 'count' | 'area' | 'length' | 'volume' | 'text' | 'other'
 export type Unit = 'count' | 'm' | 'm2' | 'm3' | 'ft' | 'ft2' | 'ft3'
 export type Status = 'verified' | 'partial' | 'disagreement' | 'cannot_verify'
-export type Source = 'geometry_dxf' | 'geometry_ifc' | 'gemma_ft' | 'gemma_base' | 'mock'
-export type Engine = 'auto' | 'geometry' | 'gemma_ft' | 'gemma_base'
+export type Source = 'geometry_dxf' | 'geometry_ifc' | 'gemma_ft' | 'gemma_base' | 'sheet_reader' | 'mock'
+export type Engine = 'auto' | 'geometry' | 'gemma_ft' | 'gemma_base' | 'sheet'
 
 export type Pt = [number, number]
 

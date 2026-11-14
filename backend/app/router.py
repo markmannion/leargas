@@ -10,7 +10,12 @@ engine="auto" runs geometry and fine-tuned Gemma together when both apply:
   - both answer and differ -> disagreement, geometry's value reported, both listed in `sources`
   - one answers -> geometry is verified; Gemma is verified/partial by its own confidence
   - neither is confident -> cannot_verify, with each source's reason
-engine="geometry" | "gemma_ft" | "gemma_base" runs only that source.
+engine="geometry" | "gemma_ft" | "gemma_base" | "sheet" runs only that source.
+
+Sheet reader (app.sheet): a large sheet (PDF, or an image with a long side >= SHEET_MIN_PX) with no
+DXF/IFC twin is answered from its own text and lines first: printed values, equipment tags, room
+labels, room outlines + the drawing scale, wall openings. Gemma only sees a 1600 px image, which
+can't show the text on such a sheet. If the sheet reader can't answer, the normal flow runs.
 
 Evidence: DXF items become polygons normalized to the sheet `/drawing` serves: the PNG twin / PDF
 page via app.register (none if the fit is not confident), or the rendered DXF stand-in sheet. Gemma's points are already normalized to its input image.
@@ -36,6 +41,7 @@ from .region import CannotScope, crop_sheet, geometry_question, scope_dxf
 from .schema import (
     Answer,
     AskRequest,
+    BBoxEvidence,
     Evidence,
     PointEvidence,
     PolygonEvidence,
@@ -70,6 +76,9 @@ GEMMA_POINTS = os.environ.get("LEARGAS_GEMMA_POINTS", "0") == "1"
 GEMMA_CALIBRATED_ONLY = os.environ.get("LEARGAS_GEMMA_CALIBRATED_ONLY", "1") != "0"
 CALIBRATED_SOURCES = ("data/cubicasa5k/", "data/swiss_dwellings/")
 IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg")
+SHEET_MIN_PX = int(os.environ.get("LEARGAS_SHEET_MIN_PX", 3500))
+SHEET_VERIFIED = 0.9
+SHEET_PARTIAL = 0.5
 
 _pool = ThreadPoolExecutor(max_workers=8)
 _gemma_slots = BoundedSemaphore(8)
@@ -318,6 +327,72 @@ def run_gemma(source: Source, image: Optional[Path], question: str,
     return out
 
 
+@lru_cache(maxsize=512)
+def sheet_applies(rel: str) -> bool:
+    """A large sheet the sheet reader should try first: a PDF, or a big raster image."""
+    p = _abs(rel)
+    if not p.is_file():
+        return False
+    if p.suffix.lower() == ".pdf":
+        return True
+    if p.suffix.lower() not in IMAGE_SUFFIXES:
+        return False
+    try:
+        from PIL import Image
+
+        Image.MAX_IMAGE_PIXELS = None
+        with Image.open(p) as im:  # reads the header only
+            return max(im.size) >= SHEET_MIN_PX
+    except Exception:
+        return False
+
+
+def run_sheet(rel: str, question: str) -> Outcome:
+    out = Outcome(Source.sheet_reader)
+    try:
+        from .sheet.answer import answer as sheet_answer
+    except Exception as e:  # OCR/vision libraries not installed
+        out.reason = f"Sheet reader unavailable: {type(e).__name__}: {e}"
+        return out
+    r = sheet_answer(_abs(rel), question)
+    if not r.ok:
+        out.reason = f"Sheet reader: {r.reason}" if r.reason else "Sheet reader could not answer."
+        return out
+    out.value, out.unit, out.confidence, out.explanation = r.value, r.unit, r.confidence, r.explanation
+    ev: List[Evidence] = []
+    for b in r.evidence[:300]:
+        try:
+            shape = (PolygonEvidence(points=b.polygon) if b.polygon and len(b.polygon) >= 3
+                     else BBoxEvidence(bbox=b.box))
+            ev.append(Evidence(shape=shape, label=b.label[:120] if b.label else None, value=b.value,
+                               source=Source.sheet_reader))
+        except Exception:
+            continue
+    out.evidence = ev
+    out._qtype = r.qtype  # type: ignore[attr-defined]
+    return out
+
+
+def sheet_fields(req: AskRequest, o: Outcome) -> dict:
+    """Status for a sheet-reader answer: verified only for printed values read with high confidence."""
+    qtype = QuestionType(getattr(o, "_qtype", None) or _guess_type(req.question))
+    if isinstance(o.value, str):
+        qtype = QuestionType.text
+    if o.confidence >= SHEET_VERIFIED:
+        status = Status.verified
+    elif o.confidence >= SHEET_PARTIAL:
+        status = Status.partial
+    else:
+        return dict(answer=None, unit=None, type=qtype, status=Status.cannot_verify, confidence=o.confidence,
+                    source=o.source, evidence=[], sources=[],
+                    explanation=f"Sheet reader guessed {o.value}, but with too little confidence. {o.explanation}")
+    note = "" if status == Status.verified else " This is an estimate: check the highlighted evidence."
+    return dict(answer=_value(o.value, qtype), unit=_unit(o.unit, qtype) if qtype != QuestionType.other else
+                (o.unit if o.unit in ("count", "m", "m2", "m3", "ft", "ft2", "ft3") else None),
+                type=qtype, status=status, confidence=o.confidence, source=o.source,
+                evidence=o.evidence, explanation=f"{o.explanation}{note}", sources=[])
+
+
 # ------------------------------------------------------------------------------------ reconcile
 
 def _guess_type(question: str) -> QuestionType:
@@ -474,6 +549,19 @@ def route(req: AskRequest) -> Answer:
     ifc = None if dxf else ifc_model(req.path)
     image = raster_image(req.path)
 
+    sheet_failed: Optional[Outcome] = None
+    if engine == "sheet" or (engine == "auto" and req.region is None and not (dxf or ifc) and sheet_applies(req.path)):
+        so = run_sheet(req.path, req.question)
+        if so.ok:
+            return Answer(path=req.path, question=req.question, region=req.region,
+                          latency_ms=(time.perf_counter() - t0) * 1000, **sheet_fields(req, so))
+        if engine == "sheet":
+            return Answer(path=req.path, question=req.question, region=req.region, answer=None, unit=None,
+                          type=_guess_type(req.question), status=Status.cannot_verify, confidence=0.0,
+                          source=Source.sheet_reader, evidence=[], explanation=so.reason or "Sheet reader could not answer.",
+                          latency_ms=(time.perf_counter() - t0) * 1000)
+        sheet_failed = so
+
     want_geo = engine in ("auto", "geometry")
     gemma_src = {"gemma_ft": Source.gemma_ft, "gemma_base": Source.gemma_base}.get(engine)
     if engine == "auto" and gemma_available():
@@ -530,6 +618,8 @@ def route(req: AskRequest) -> Answer:
     if engine == "auto" and gemma_src is None and not (dxf or ifc):
         outcomes.append(Outcome(Source.gemma_ft, reason="Model endpoint not configured (MODEL_BASE_URL)."))
 
+    if sheet_failed is not None:
+        outcomes.append(sheet_failed)  # so a cannot_verify explains why the sheet reader didn't answer
     gem_ok = any(o.ok for o in outcomes if o.source in (Source.gemma_ft, Source.gemma_base))
     fields = reconcile(req, q, outcomes, calibrated=gemma_calibrated(req) if gem_ok else True)
     return Answer(path=req.path, question=req.question, region=req.region,

@@ -86,7 +86,8 @@
             "auto",
             "geometry",
             "gemma_ft",
-            "gemma_base"
+            "gemma_base",
+            "sheet"
           ],
           "type": "string"
         },

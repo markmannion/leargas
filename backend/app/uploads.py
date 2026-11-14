@@ -82,6 +82,16 @@ def _pdf_png_twin(pdf: Path) -> Optional[Path]:
     return out
 
 
+def _warm_sheet(path: Path) -> None:
+    """Start reading the sheet's text in the background, so the first question doesn't wait for OCR."""
+    try:
+        from .sheet.words import warm
+
+        warm(path)
+    except Exception:
+        pass  # the sheet reader is optional
+
+
 def _entry(files: List[Path]) -> dict:
     """The catalogue entry for one uploaded stem: the most viewable of its files."""
     best = min(files, key=lambda p: PRIMARY.get(p.suffix.lower(), 9))
@@ -128,4 +138,6 @@ async def upload(request: Request, name: str = Query(..., min_length=1, max_leng
     dest.write_bytes(body)
     if ext == ".pdf":
         _pdf_png_twin(dest)
+    if ext in (".pdf", ".png", ".jpg", ".jpeg"):
+        _warm_sheet(dest)
     return {"group": group, "drawing": _entry(_stems(folder)[dest.stem])}
