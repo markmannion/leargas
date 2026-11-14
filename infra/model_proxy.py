@@ -23,7 +23,8 @@ from fastapi.responses import JSONResponse, Response
 
 DEFAULT_ROUTES = (
     "gemma-base=http://localhost:8001,gemma-ft=http://localhost:8002,"
-    "gemma-e2b=http://localhost:8003,gemma-26b=http://localhost:8004,gemma-ft-e2b=http://localhost:8005"
+    "gemma-e2b=http://localhost:8003,gemma-26b=http://localhost:8004,gemma-ft-e2b=http://localhost:8005,"
+    "gemma-ft-run2=http://localhost:8006,gemma-ft-cc=http://localhost:8008"
 )
 API_KEY = os.environ.get("MODEL_API_KEY", "")
 ROUTES = dict(kv.split("=", 1) for kv in os.environ.get("ROUTES", DEFAULT_ROUTES).split(",") if kv)
