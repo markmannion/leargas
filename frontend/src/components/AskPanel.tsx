@@ -11,6 +11,16 @@ interface Props {
   children?: ReactNode
 }
 
+// Starters for an uploaded drawing, which has no dataset questions. They match parser templates /
+// English rules, so geometry engines can take them when the upload has a DXF or IFC twin.
+const STARTERS = [
+  'How many doors are drawn on this floor plan?',
+  'How many windows are drawn on this floor plan?',
+  'How many rooms are there?',
+  'How many bathrooms are there?',
+  'What is the total floor area in m²?',
+]
+
 export function AskPanel({ drawing, busy, onAsk, voice, children }: Props) {
   const [text, setText] = useState('')
   const [lang, setLang] = useState<string>('all')
@@ -90,6 +100,23 @@ export function AskPanel({ drawing, busy, onAsk, voice, children }: Props) {
       </form>
 
       {children}
+
+      {drawing && drawing.questions.length === 0 && (
+        <div className="block">
+          <div className="block-title-row">
+            <h3 className="block-title">Try asking</h3>
+          </div>
+          <ul className="question-list">
+            {STARTERS.map((q) => (
+              <li key={q}>
+                <button type="button" onClick={() => submit(q)} disabled={busy}>
+                  <span className="q-text">{q}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {questions.length > 0 && (
         <div className="block">

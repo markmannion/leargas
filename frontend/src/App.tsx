@@ -12,6 +12,7 @@ const RENDER_NOTE: Record<Drawing['render'], string | null> = {
   image: null,
   pdf: 'PDF page 1',
   dxf: 'Rendered from DXF twin',
+  none: 'No sheet to show for an IFC model',
 }
 
 export default function App() {
@@ -27,6 +28,8 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   const [hovered, setHovered] = useState<number | null>(null)
   const inflight = useRef<AbortController | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const [voice, setVoice] = useState(false)
   const { speak, stop: stopSpeech, speaking, error: speechError } = useSpeaker()
 
@@ -76,6 +79,37 @@ export default function App() {
     history.replaceState(null, '', `#${encodeURIComponent(d.path)}`)
   }, [stopSpeech])
 
+  // Files go up one by one into one group, so same-stem twins pair. The newest entry per stem wins
+  // (uploading plan.dxf after plan.pdf updates the plan.pdf entry), and the first file's stem is selected.
+  const upload = useCallback(
+    async (files: File[]) => {
+      setUploading(true)
+      setUploadError(null)
+      try {
+        let group: string | undefined
+        const byStem = new Map<string, Drawing>()
+        let first: string | null = null
+        for (const f of files) {
+          const r = await api.upload(f, group)
+          group = r.group
+          byStem.set(r.drawing.name, r.drawing)
+          first ??= r.drawing.name
+        }
+        const added = [...byStem.values()]
+        const prefixes = new Set(added.map((d) => d.path.replace(/\.[^.]+$/, '')))
+        setDrawings((ds) => [...added, ...ds.filter((d) => !prefixes.has(d.path.replace(/\.[^.]+$/, '')))])
+        setTotal((t) => t + added.length)
+        const pick = first ? byStem.get(first) : undefined
+        if (pick) select(pick)
+      } catch (e) {
+        setUploadError((e as Error).message)
+      } finally {
+        setUploading(false)
+      }
+    },
+    [select],
+  )
+
   const ask = useCallback(
     async (question: string, spoken = false) => {
       if (!selected) return
@@ -112,7 +146,7 @@ export default function App() {
   return (
     <div className="app">
       <SheetViewer
-        src={selected ? api.drawingUrl(selected.path) : null}
+        src={selected && selected.render !== 'none' ? api.drawingUrl(selected.path) : null}
         evidence={answer?.evidence ?? []}
         page={0}
         hovered={hovered}
@@ -135,6 +169,9 @@ export default function App() {
         selected={selected?.path ?? null}
         error={listError}
         onSelect={select}
+        onUpload={upload}
+        uploading={uploading}
+        uploadError={uploadError}
       />
 
       <aside className="inspector glass">

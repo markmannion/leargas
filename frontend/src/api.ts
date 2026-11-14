@@ -1,4 +1,4 @@
-import type { Answer, AskRequest, Drawing, Health } from './types'
+import type { Answer, AskRequest, Drawing, Health, UploadResult } from './types'
 
 // In dev, Vite proxies /api to the FastAPI app (see vite.config.ts).
 export const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? '/api'
@@ -31,6 +31,14 @@ export const api = {
       body: JSON.stringify(req),
       signal,
     }).then((r) => json<Answer>(r)),
+
+  // Raw body, not multipart. Pass the group from the first file to pair twins (plan.pdf + plan.dxf).
+  upload: (file: File, group?: string) =>
+    fetch(`${API_BASE}/upload?name=${encodeURIComponent(file.name)}${group ? `&group=${group}` : ''}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: file,
+    }).then((r) => json<UploadResult>(r)),
 
   drawingUrl: (path: string, page = 0) =>
     `${API_BASE}/drawing?path=${encodeURIComponent(path)}&page=${page}`,

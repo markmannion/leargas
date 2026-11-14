@@ -7,11 +7,15 @@ interface Props {
   selected: string | null
   error: string | null
   onSelect: (d: Drawing) => void
+  onUpload: (files: File[]) => void
+  uploading: boolean
+  uploadError: string | null
 }
 
-const RENDER_LABEL: Record<Drawing['render'], string> = { image: 'IMG', pdf: 'PDF', dxf: 'DXF' }
+const RENDER_LABEL: Record<Drawing['render'], string> = { image: 'IMG', pdf: 'PDF', dxf: 'DXF', none: 'IFC' }
+const UPLOAD_ACCEPT = '.png,.jpg,.jpeg,.pdf,.dxf,.ifc'
 
-export function DrawingList({ drawings, total, selected, error, onSelect }: Props) {
+export function DrawingList({ drawings, total, selected, error, onSelect, onUpload, uploading, uploadError }: Props) {
   const [q, setQ] = useState('')
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase()
@@ -42,6 +46,21 @@ export function DrawingList({ drawings, total, selected, error, onSelect }: Prop
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
+        <label className={`upload-btn${uploading ? ' busy' : ''}`} title="PNG, JPG, PDF, DXF or IFC. Pick a PDF and its DXF together to pair them.">
+          <input
+            type="file"
+            multiple
+            accept={UPLOAD_ACCEPT}
+            disabled={uploading}
+            onChange={(e) => {
+              const files = [...(e.target.files ?? [])]
+              e.target.value = ''
+              if (files.length) onUpload(files)
+            }}
+          />
+          {uploading ? 'Uploading…' : 'Upload drawing'}
+        </label>
+        {uploadError && <p className="register-msg error small">Upload failed: {uploadError}</p>}
       </div>
 
       <div className="register-body">
@@ -67,9 +86,17 @@ export function DrawingList({ drawings, total, selected, error, onSelect }: Prop
                     </span>
                     <span className="sheet-meta">
                       <span className="badge">{RENDER_LABEL[d.render]}</span>
-                      <span className="qcount" title={`${d.questions.length} questions`}>
-                        {d.questions.length}
-                      </span>
+                      {/* an uploaded vector twin (DXF/IFC) means the geometry engines can check the answer */}
+                      {d.render !== 'dxf' && d.render !== 'none' && d.files?.some((f) => f === 'dxf' || f === 'ifc') && (
+                        <span className="badge" title={`Uploaded files: ${d.files.join(', ')}`}>
+                          +{d.files.filter((f) => f === 'dxf' || f === 'ifc').join('+').toUpperCase()}
+                        </span>
+                      )}
+                      {d.collection !== 'uploads' && (
+                        <span className="qcount" title={`${d.questions.length} questions`}>
+                          {d.questions.length}
+                        </span>
+                      )}
                     </span>
                   </button>
                 </li>

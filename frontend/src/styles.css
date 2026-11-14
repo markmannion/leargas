@@ -493,6 +493,37 @@ button {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 35%, transparent);
 }
 
+/* Upload: a label wrapping a hidden file input, styled like the search field. */
+.upload-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  border-radius: 9px;
+  border: 1px dashed var(--label-3);
+  color: var(--label-2);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.upload-btn:hover,
+.upload-btn:focus-within {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+.upload-btn.busy {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.upload-btn input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
 .register-body {
   overflow-y: auto;
   min-height: 0;

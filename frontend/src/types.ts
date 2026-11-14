@@ -61,12 +61,21 @@ export interface Drawing {
   path: string
   collection: string
   name: string
-  render: 'image' | 'pdf' | 'dxf'
+  // 'none': nothing to show (an uploaded IFC model); the engines can still answer.
+  render: 'image' | 'pdf' | 'dxf' | 'none'
+  // Uploads only: the extensions stored for this stem, e.g. ["dxf", "pdf", "png"].
+  files?: string[]
   questions: DatasetQuestion[]
+}
+
+export interface UploadResult {
+  group: string
+  drawing: Drawing
 }
 
 export interface Health {
   ok: boolean
   mode: string
   gold_questions_loaded: number
+  query_templates?: number
 }
